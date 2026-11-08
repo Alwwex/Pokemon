@@ -2,6 +2,7 @@
 import { SPECIES } from '/shared/species.js';
 import { MOVES } from '/shared/moves.js';
 import { TYPES } from '/shared/types.js';
+import { expProgress } from '/shared/formulas.js';
 import { monSprite } from './gfx/monart.js';
 import { trainerPortrait } from './gfx/chars.js';
 import { drawOrb } from './gfx/tiles.js';
@@ -185,7 +186,7 @@ export class BattleScene {
   }
 
   positionBalls() {
-    if (this.kind === 'wild') { this.balls.innerHTML = ''; return; }
+    if (this.kind === 'wild' || this.infoFoe.classList.contains('hide')) { this.balls.innerHTML = ''; return; }
     const r = this.infoFoe.getBoundingClientRect();
     this.balls.style.left = `${r.left}px`;
     this.balls.style.top = `${r.bottom + 6}px`;
@@ -233,7 +234,7 @@ export class BattleScene {
     this.env = msg.env || 'grass';
     this.night = !!msg.night;
     this.foe = msg.foe;
-    this.party = msg.party;
+    this.party = msg.party.map((m) => ({ ...m, expFrac: expProgress(m).frac }));
     this.foeCount = msg.foe.count || 1;
     this.foeFainted = 0;
     this.mons = [null, null];
@@ -548,7 +549,7 @@ export class BattleScene {
   handleReq(req) {
     if (!req || !this.active) return;
     this.req = req;
-    this.party = req.party.map((m) => ({ ...m, expFrac: (this.party.find((p) => p.uid === m.uid) || {}).expFrac ?? 0 }));
+    this.party = req.party.map((m) => ({ ...m, expFrac: expProgress(m).frac }));
     this.waitEl.classList.add('hidden');
     if (req.need === 'switch') return this.forcedSwitch();
     this.showActions();

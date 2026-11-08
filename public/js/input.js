@@ -31,6 +31,8 @@ class Input {
     const act = KEYMAP[e.code];
     if (!act) return;
     if (act === 'start' && e.code === 'Tab') e.preventDefault();
+    // klávesa, která otevírá chat, se nesmí propsat do textového pole
+    if (act === 'chat') e.preventDefault();
     if (DIRS.includes(act)) {
       e.preventDefault();
       if (!this.held.has(act)) this.held.set(act, performance.now());

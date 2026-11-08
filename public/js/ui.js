@@ -569,10 +569,11 @@ export function openDex(ctx) {
       detail.innerHTML = '';
       if (!seen[k]) { detail.append('Tohoto tvora jsi ještě nepotkal.'); return; }
       const evo = (sp.evo || []).map((e) => (e.trade ? `výměnou → ${SPECIES[e.to].n}` : `úr. ${e.lvl} → ${SPECIES[e.to].n}`));
-      detail.append(
+      detail.append(...[
         h('div', { class: 'row' }, h('b', {}, sp.n), ...sp.ty.map(typeBadge), caught[k] ? h('span', { class: 'small' }, '● chycen') : h('span', { class: 'small muted' }, 'jen viděn')),
         h('div', { class: 'small', style: 'margin-top:4px' }, caught[k] ? sp.d : 'Chyť ho, abys o něm zjistil víc.'),
-        caught[k] && (evo.length || PREVO[k]) ? h('div', { class: 'small muted', style: 'margin-top:4px' }, PREVO[k] ? `Vyvíjí se z: ${SPECIES[PREVO[k]].n}. ` : '', evo.length ? `Vývoj: ${evo.join(', ')}` : '') : null);
+        caught[k] && (evo.length || PREVO[k]) ? h('div', { class: 'small muted', style: 'margin-top:4px' }, PREVO[k] ? `Vyvíjí se z: ${SPECIES[PREVO[k]].n}. ` : '', evo.length ? `Vývoj: ${evo.join(', ')}` : '') : null,
+      ].filter(Boolean));
     };
     let layer;
     const close = () => { layer.close(); resolve(); };
