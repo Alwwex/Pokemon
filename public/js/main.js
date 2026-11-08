@@ -4,6 +4,7 @@ import { input } from './input.js';
 import { audio } from './audio.js';
 import { World } from './world.js';
 import { Renderer2D } from './render2d.js';
+import { openRegionMap } from './regionmap.js';
 import { BattleScene } from './battle.js';
 import {
   UI, h, dialog, ask, toast, makeMenu, openPanel, pickMon, showSummary, openBag, openDex, openShop, openPC, openTrade,
@@ -212,7 +213,7 @@ async function handleBlocking(m) {
       app.send({ t: 'trade_reply', id: m.from.id, ok: c === 0 });
       break;
     }
-    case 'who': await showPlayers(m.list); break;
+    case 'who': if (m.forMap) { if (app.onWhoMap) app.onWhoMap(m.list); } else await showPlayers(m.list); break;
     default:
   }
 }
@@ -484,6 +485,7 @@ function openMainMenu() {
     { label: 'Tým', act: 'party', disabled: !me.party.length },
     { label: 'Atlas', act: 'dex', disabled: !me.bag.atlas },
     { label: 'Batoh', act: 'bag' },
+    { label: 'Mapa regionu', act: 'map' },
     { label: 'Karta trenéra', act: 'card' },
     { label: 'Hráči online', act: 'players' },
     { label: 'Nastavení', act: 'settings' },
@@ -499,6 +501,7 @@ function openMainMenu() {
       else if (it.act === 'dex') await openDex(uiCtx);
       else if (it.act === 'bag') await openBag(uiCtx, { mode: 'world' });
       else if (it.act === 'card') await trainerCard();
+      else if (it.act === 'map') await openRegionMap(app, world.map ? world.map.id : null);
       else if (it.act === 'players') { layer.close(); app.send({ t: 'who' }); return; }
       else if (it.act === 'settings') { const out = await settings(); if (out === 'logout') { layer.close(); return; } }
       layer.el.style.display = '';

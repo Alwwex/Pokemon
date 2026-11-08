@@ -372,12 +372,13 @@ const rybnikov = {
     'TT...........~~~~~~~~~~.....TT',
     'TT..ss......................TT',
     'TT.sss...*.......*..........TT',
-    'TT..........................TT',
-    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
-    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
+    'TT......................::..TT',
+    'TTTTTTTTTTTTTTTTTTTTTTTT::TTTT',
+    'TTTTTTTTTTTTTTTTTTTTTTTT::TTTT',
   ],
   edges: {
     left: { to: 'cesta2', off: -3 },
+    down: { to: 'cesta8', off: -20, need: { badges: 2, msg: 'Strážný: Na jihu je Pobřeží a přístav Solnice. Pustím tě tam až s Odznakem Kapka od Hany!' } },
     up: { to: 'cesta3', off: -4, need: { badges: 2, msg: 'Strážný: Cesta 3 vede k Šedé jeskyni. Pustím tě tam až se dvěma odznaky – nejdřív poraz Hanu ve stadionu!' } },
   },
   buildings: [
@@ -389,6 +390,7 @@ const rybnikov = {
   signs: [
     { x: 13, y: 9, text: 'Rybníkov – město tisíce rybníků.' },
     { x: 17, y: 6, text: 'Stadion Rybníkov – vedoucí: Hana. „Klidná hladina, divoký proud.“' },
+    { x: 23, y: 21, text: '↓ Cesta 8 – Pobřeží a přístav Solnice' },
   ],
   npcs: [
     { id: 'ryb_fisher', x: 10, y: 15, dir: 'right', look: 'fisher', say: ['Rybník Velký Kapr je nejstarší v celé Velhoře.', 'Kdysi tu žil obrovský Kaprál, který velel všem rybám!'] },

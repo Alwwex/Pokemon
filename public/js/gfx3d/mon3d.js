@@ -1051,8 +1051,11 @@ export function creatureScale(key) {
 }
 
 function buildProcedural(key, opts) {
-  const sp = SPECIES[key];
-  const spec = sp.art;
+  return buildFromArt(SPECIES[key].art, opts, key);
+}
+
+// Postaví 3D tvora přímo z popisu `art` (bez mezipaměti) – používá Dílna tvorů.
+export function buildFromArt(spec, opts = {}, key = 'custom') {
   const c = creatureColors(spec, opts.shiny);
   const k = new Kit(c);
   const m = Math.max(0, Math.min(1, ((spec.s || 0.6) - 0.5) / 0.5));
@@ -1079,7 +1082,7 @@ function buildProcedural(key, opts) {
   const inner = new THREE.Group();
   inner.name = 'inner';
   while (k.root.children.length) inner.add(k.root.children[0]);
-  const sc = creatureScale(key);
+  const sc = 0.62 + 0.45 * (spec.s || 0.6);
   inner.scale.setScalar(sc);
   const root = new THREE.Group();
   root.add(inner);

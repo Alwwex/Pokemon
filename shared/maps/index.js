@@ -6,6 +6,7 @@ import { MOVES } from '../moves.js';
 import AREA1 from './area1.js';
 import AREA2 from './area2.js';
 import AREA3 from './area3.js';
+import AREA4 from './area4.js';
 
 export const MAPS = {};
 
@@ -80,7 +81,7 @@ function buildSolid(map) {
   map.solid = solid;
 }
 
-for (const area of [AREA1, AREA2, AREA3]) for (const def of area) addMap(def);
+for (const area of [AREA1, AREA2, AREA3, AREA4]) for (const def of area) addMap(def);
 linkBuildings();
 for (const m of Object.values(MAPS)) buildSolid(m);
 

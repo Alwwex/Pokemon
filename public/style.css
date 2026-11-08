@@ -251,3 +251,7 @@ body.touch.in-battle #touch, body.touch.ui-open #dpad { display: none; }
   .logo { font-size: 36px; }
   .side-menu { top: 66px; width: min(240px, 70vw); }
 }
+
+.region-canvas { width: 100%; display: block; border-radius: 12px; border: 3px solid #2b2742; margin: 6px 0; background: #3a84d0; }
+.studio-link { color: #e8443a; text-decoration: none; font-weight: 700; }
+.studio-link:hover { text-decoration: underline; }

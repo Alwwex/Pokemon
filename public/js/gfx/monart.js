@@ -1095,7 +1095,11 @@ function colorsFor(spec, shiny) {
 export function drawCreature(g, speciesKey, opts = {}) {
   const sp = SPECIES[speciesKey];
   if (!sp) return;
-  const spec = sp.art;
+  drawArt(g, sp.art, opts);
+}
+
+// Nakreslí tvora přímo z popisu `art` (Dílna tvorů), do prostoru 100×100.
+export function drawArt(g, spec, opts = {}) {
   const back = !!opts.back;
   const body = BODIES[spec.b] || BODIES.blob;
   const m = Math.max(0, Math.min(1, ((spec.s || 0.6) - 0.5) / 0.5));

@@ -1151,9 +1151,9 @@ export class Game {
     this.broadcast({ t: 'chat', id: p.id, name: p.name, text, map: p.map, mapName: MAPS[p.map].name, champ: !!p.flags.champion });
   }
 
-  who(s) {
-    const list = [...this.online.values()].filter((o) => o.p).map((o) => ({ id: o.p.id, name: o.p.name, map: MAPS[o.p.map].name, battle: !!o.battle, badges: o.p.badges.length, champ: !!o.p.flags.champion }));
-    s.send({ t: 'who', list });
+  who(s, m) {
+    const list = [...this.online.values()].filter((o) => o.p).map((o) => ({ id: o.p.id, name: o.p.name, map: MAPS[o.p.map].name, mapId: o.p.map, battle: !!o.battle, badges: o.p.badges.length, champ: !!o.p.flags.champion }));
+    s.send({ t: 'who', list, forMap: !!(m && m.forMap) });
   }
 
   // ---------- výzvy a výměny ----------
