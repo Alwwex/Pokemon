@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1a2e">
+  <meta name="description" content="Monsterra Online – multiplayerová RPG hra o chytání, trénování a soubojích tvorů v regionu Velhora.">
+  <title>Monsterra Online</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="map-banner"></div>
+    <div id="hud-right">
+      <button id="btn-online" class="hud-btn" title="Hráči online"><span class="dot"></span><span id="online-n">1</span></button>
+      <button id="btn-sound" class="hud-btn" title="Zvuk">♪</button>
+      <button id="btn-menu" class="hud-btn" title="Menu (Esc)">☰</button>
+    </div>
+  </div>
+
+  <div id="chat" class="hidden">
+    <div id="chat-log"></div>
+    <form id="chat-form" autocomplete="off">
+      <input id="chat-input" maxlength="140" placeholder="Napiš zprávu… (Enter)" enterkeyhint="send">
+    </form>
+  </div>
+
+  <div id="ui"></div>
+  <div id="toasts"></div>
+
+  <div id="touch" class="hidden">
+    <div id="dpad">
+      <button data-dir="up" class="dp up">▲</button>
+      <button data-dir="left" class="dp left">◀</button>
+      <button data-dir="right" class="dp right">▶</button>
+      <button data-dir="down" class="dp down">▼</button>
+    </div>
+    <div id="abtns">
+      <button data-key="b" class="tb b">B</button>
+      <button data-key="a" class="tb a">A</button>
+    </div>
+    <button id="t-chat" class="tb small" data-key="chat">💬</button>
+  </div>
+
+  <div id="login">
+    <div class="login-bg"><canvas id="login-canvas"></canvas></div>
+    <div class="login-box">
+      <h1 class="logo">MONSTERRA<span>online</span></h1>
+      <p class="tagline">Chyť je, vycvič je, vyhraj s nimi!</p>
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Přihlásit</button>
+        <button class="tab" data-tab="register">Nový trenér</button>
+      </div>
+      <form id="form-login" class="form">
+        <label>Jméno trenéra<input name="name" autocomplete="username" maxlength="16" required></label>
+        <label>Heslo<input name="pass" type="password" autocomplete="current-password" maxlength="64" required></label>
+        <button class="btn primary" type="submit">Hrát</button>
+      </form>
+      <form id="form-register" class="form hidden">
+        <div class="creator">
+          <canvas id="look-preview" width="96" height="120"></canvas>
+          <div class="look-opts" id="look-opts"></div>
+        </div>
+        <label>Jméno trenéra<input name="name" autocomplete="username" maxlength="16" pattern="[\p{L}\p{N}_]{3,16}" required placeholder="3–16 znaků"></label>
+        <label>Heslo<input name="pass" type="password" autocomplete="new-password" minlength="4" maxlength="64" required></label>
+        <button class="btn primary" type="submit">Vytvořit trenéra</button>
+      </form>
+      <p id="login-err" class="err"></p>
+      <p class="small muted">Ovládání: šipky/WASD pohyb, Z/Enter akce, X/Esc zpět a menu, Shift běh, T chat.</p>
+    </div>
+  </div>
+
+  <div id="loading" class="hidden"><div class="spinner"></div><p id="loading-msg">Připojuji…</p></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

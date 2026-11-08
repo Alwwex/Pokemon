@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="cs"><head><meta charset="utf-8"><title>Galerie</title>
+<style>body{background:#2a2a3a;color:#fff;font:12px sans-serif;margin:8px} .g{display:flex;flex-wrap:wrap;gap:4px} .c{background:#c8e0b8;text-align:center;color:#222;padding:2px} canvas{display:block}</style></head>
+<body><div id="out"></div>
+<script type="module">
+import { SPECIES_LIST, SPECIES } from '/shared/species.js';
+import { monSprite } from '/js/gfx/monart.js';
+import { charSheet } from '/js/gfx/chars.js';
+import { LOOKS } from '/shared/looks.js';
+import { MAPS } from '/shared/maps/index.js';
+import { renderMap } from '/js/gfx/tiles.js';
+const out = document.getElementById('out');
+const q = new URLSearchParams(location.search);
+const mode = q.get('m') || 'mons';
+const size = Number(q.get('s') || 110);
+const from = Number(q.get('from') || 0), to = Number(q.get('to') || 999);
+if (mode === 'mons') {
+  const g = document.createElement('div'); g.className = 'g'; out.appendChild(g);
+  SPECIES_LIST.slice(from, to).forEach((k) => {
+    const d = document.createElement('div'); d.className = 'c';
+    d.appendChild(monSprite(k, size, { back: q.get('back') === '1', shiny: q.get('shiny') === '1' }));
+    d.append(SPECIES[k].n); g.appendChild(d);
+  });
+} else if (mode === 'chars') {
+  const g = document.createElement('div'); g.className = 'g'; out.appendChild(g);
+  for (const [k, l] of Object.entries(LOOKS)) {
+    const c = charSheet(l); const big = document.createElement('canvas'); big.width = c.width * 3; big.height = c.height * 3;
+    const bg = big.getContext('2d'); bg.imageSmoothingEnabled = false; bg.fillStyle = '#86d063'; bg.fillRect(0,0,big.width,big.height); bg.drawImage(c, 0, 0, big.width, big.height);
+    const d = document.createElement('div'); d.className = 'c'; d.appendChild(big); d.append(k); g.appendChild(d);
+  }
+} else if (mode === 'map') {
+  const m = MAPS[q.get('id') || 'liskova']; const r = renderMap(m);
+  const z = Number(q.get('z') || 2);
+  const c = document.createElement('canvas'); c.width = r.w * z; c.height = r.h * z; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.drawImage(r.frames[0], 0, 0, c.width, c.height); g.drawImage(r.over, 0, 0, c.width, c.height); out.appendChild(c);
+}
+document.title = 'ready';
+</script></body></html>
