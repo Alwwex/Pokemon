@@ -118,7 +118,7 @@ test('vývoj po zvýšení úrovně a učení útoku', async () => {
   c.p.party = [mon];
   place(c, 'cesta1', 9, 20, 'up');
   c.clear();
-  game.startWild(c.s, 'hlodik', 10, MAPS.cesta1);
+  game.startWild(c.s, 'hlodik', 6, MAPS.cesta1);
   const bs = await c.wait('battle_start');
   const end = await fight(c, bs);
   assert.equal(end.outcome, 'win');
@@ -137,7 +137,7 @@ test('učení nového útoku při plné sadě nabídne výběr', async () => {
   c.p.party = [mon];
   place(c, 'cesta1', 9, 20, 'up');
   c.clear();
-  game.startWild(c.s, 'housik', 9, MAPS.cesta1);
+  game.startWild(c.s, 'housik', 4, MAPS.cesta1);
   const end = await fight(c, await c.wait('battle_start'));
   assert.equal(end.outcome, 'win');
   const learn = await c.wait('learn');
@@ -173,6 +173,42 @@ test('obchod: nákup a prodej', async () => {
   c.send({ t: 'buy', item: 'orb', qty: 1 });
   await tick(20);
   assert.equal(c.p.bag.orb, 8);
+});
+
+test('čepice: nákup u Kloboučnice, nasazení, výměna a sundání', async () => {
+  const c = await newPlayer('Hat');
+  c.p.party = [createMon('jiskrik', 5), createMon('pipak', 5)];
+  // Kloboučnice stojí v Centru na (11,5) a kouká doleva → hráč na (10,5) čelem doprava
+  place(c, 'mlynov_centrum', 10, 5, 'right');
+  c.clear();
+  c.send({ t: 'interact' });
+  const shop = await c.wait('shop');
+  assert.ok(shop.hats);
+  assert.ok(shop.items.some((i) => i.id === 'cepice_ksiltovka'));
+  assert.ok(!shop.items.some((i) => i.id === 'cepice_koruna'), 'korunka až s 6 odznaky');
+  c.send({ t: 'buy', item: 'cepice_ksiltovka', qty: 1 });
+  c.send({ t: 'buy', item: 'cepice_party', qty: 1 });
+  await c.wait('shop_res');
+  await c.wait('shop_res');
+  assert.equal(c.p.bag.cepice_ksiltovka, 1);
+  const lead = c.p.party[0];
+  c.send({ t: 'close' });
+  c.clear();
+  c.send({ t: 'item', item: 'cepice_ksiltovka', target: lead.uid });
+  await tick(30);
+  assert.equal(lead.hat, 'cepice_ksiltovka');
+  assert.ok(!c.p.bag.cepice_ksiltovka);
+  // výměna: stará čepice se vrátí do batohu
+  c.send({ t: 'item', item: 'cepice_party', target: lead.uid });
+  await tick(30);
+  assert.equal(lead.hat, 'cepice_party');
+  assert.equal(c.p.bag.cepice_ksiltovka, 1);
+  // čepice je vidět i ostatním (veřejný pohled na prvního tvora)
+  assert.equal(game.pubPlayer(c.s).lead.hat, 'cepice_party');
+  c.send({ t: 'unhat', uid: lead.uid });
+  await tick(30);
+  assert.equal(lead.hat, null);
+  assert.equal(c.p.bag.cepice_party, 1);
 });
 
 test('počítač: uložení a vyzvednutí tvora', async () => {

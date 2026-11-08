@@ -14,6 +14,7 @@ import { charSheet } from './gfx/chars.js';
 import { monSprite } from './gfx/monart.js';
 import { SKINS, HAIR_COLORS, SHIRT_COLORS, PANTS_COLORS } from '/shared/looks.js';
 import { SPECIES, SPECIES_LIST } from '/shared/species.js';
+import { ITEMS } from '/shared/items.js';
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -516,7 +517,11 @@ async function partyMenu() {
     if (i < 0) return;
     start = i;
     const m = me.party[i];
-    const c = await ask(`${monLabel(m)} (úr. ${m.lvl})`, ['Shrnutí', 'Přesunout', 'Přezdívka', 'Zpět']);
+    const opts = ['Shrnutí', 'Přesunout', 'Přezdívka'];
+    if (m.hat) opts.push(`Sundat čepici (${ITEMS[m.hat] ? ITEMS[m.hat].n : 'čepice'})`);
+    opts.push('Zpět');
+    const c = await ask(`${monLabel(m)} (úr. ${m.lvl})`, opts);
+    if (c === 3 && m.hat) { app.send({ t: 'unhat', uid: m.uid }); await sleep(200); continue; }
     if (c === 0) await showSummary(m);
     else if (c === 1) {
       const j = await pickMon(me.party, { title: `Kam přesunout ${monLabel(m)}?`, start: i });

@@ -4,7 +4,7 @@ import {
 } from '../shared/maps/index.js';
 import { DIRS } from '../shared/tiles.js';
 import { SPECIES, STARTERS } from '../shared/species.js';
-import { ITEMS } from '../shared/items.js';
+import { ITEMS, HAT_TIERS } from '../shared/items.js';
 import { MOVES } from '../shared/moves.js';
 import { sanitizeLook } from '../shared/looks.js';
 import { monName, expForLevel } from '../shared/formulas.js';
@@ -308,7 +308,7 @@ export class Game {
   pubPlayer(s) {
     const p = s.p;
     const lead = p.party[0];
-    return { id: p.id, name: p.name, look: p.look, x: p.x, y: p.y, dir: p.dir, battle: !!s.battle, lead: lead ? { s: lead.s, shiny: lead.shiny } : null, champ: !!p.flags.champion, badges: p.badges.length };
+    return { id: p.id, name: p.name, look: p.look, x: p.x, y: p.y, dir: p.dir, battle: !!s.battle, lead: lead ? { s: lead.s, shiny: lead.shiny, hat: lead.hat || null } : null, champ: !!p.flags.champion, badges: p.badges.length };
   }
 
   mapList(s) {
@@ -1032,6 +1032,17 @@ export class Game {
     if (it.cat === 'orb' || it.cat === 'key') return this.dialog(s, ['Teď to nelze použít.']);
     const mon = this.findMon(p, m.target);
     if (!mon) return;
+    if (it.cat === 'hat') {
+      if (mon.hat === id) return this.dialog(s, [`${monName(mon)} už ${it.n} nosí.`]);
+      this.takeItem(p, id);
+      const old = mon.hat;
+      if (old && ITEMS[old]) this.addItem(p, old, 1);
+      mon.hat = id;
+      s.dirty = true;
+      this.sendMe(s);
+      if (p.party[0] === mon) this.toMap(p.map, { t: 'p_add', p: this.pubPlayer(s) }, s);
+      return this.dialog(s, [`${monName(mon)} má teď na hlavě ${it.n}!${old && ITEMS[old] ? ` (${ITEMS[old].n} se vrátila do Batohu.)` : ''}`]);
+    }
     if (it.cat === 'tm') {
       const mv = it.move;
       if (!canLearnTM(mon.s, mv)) return this.dialog(s, [`${monName(mon)} se útok ${MOVES[mv].n} nemůže naučit.`]);
@@ -1087,6 +1098,20 @@ export class Game {
     }
     this.sendMe(s);
     this.dialog(s, out.length ? out : ['Nic se nestalo.']);
+  }
+
+  unhat(s, m) {
+    if (s.battle || s.trade) return;
+    const p = s.p;
+    const mon = this.findMon(p, m.uid);
+    if (!mon || !mon.hat) return;
+    const id = mon.hat;
+    mon.hat = null;
+    if (ITEMS[id]) this.addItem(p, id, 1);
+    s.dirty = true;
+    this.sendMe(s);
+    if (p.party[0] === mon) this.toMap(p.map, { t: 'p_add', p: this.pubPlayer(s) }, s);
+    this.notice(s, `${monName(mon)} sundal ${ITEMS[id] ? ITEMS[id].n : 'čepici'}. Je zpátky v Batohu.`);
   }
 
   partySwap(s, m) {
@@ -1328,6 +1353,14 @@ const SCRIPTS = {
     ]);
   },
 
+  hats(s, npc) {
+    const p = s.p;
+    const list = [];
+    for (const [b, items] of HAT_TIERS) if (p.badges.length >= b) list.push(...items);
+    s.ui = { kind: 'shop', map: p.map, x: p.x, y: p.y, list };
+    s.send({ t: 'shop', name: npc.name, hats: true, items: list.map((id) => ({ id, price: ITEMS[id].price })) });
+  },
+
   shop(s, npc) {
     const p = s.p;
     const list = this.shopList(p, MAPS[p.map]);
@@ -1389,6 +1422,7 @@ const HANDLERS = {
   learn: Game.prototype.learnReply,
   evolve: Game.prototype.evolveReply,
   item: Game.prototype.useItem,
+  unhat: Game.prototype.unhat,
   buy: Game.prototype.buy,
   sell: Game.prototype.sell,
   pc: Game.prototype.pcOp,

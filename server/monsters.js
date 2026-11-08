@@ -196,6 +196,7 @@ export function ownView(mon) {
     ot: mon.ot,
     met: mon.met,
     orb: mon.orb,
+    hat: mon.hat || null,
   };
 }
 
@@ -210,5 +211,6 @@ export function publicView(mon) {
     mhp: maxHp(mon),
     status: mon.status,
     shiny: mon.shiny,
+    hat: mon.hat || null,
   };
 }

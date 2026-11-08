@@ -33,6 +33,7 @@ export const LOOKS = {
   sailor:    { skin: 2, hair: '#2a1e16', hs: 0, shirt: '#f4f4f4', pants: '#3a4a7a', hat: '#f4f4f4' },
   worker:    { skin: 2, hair: '#5a3a22', hs: 0, shirt: '#f08a2a', pants: '#3a4a7a', hat: '#f2c42c' },
   guard:     { skin: 1, hair: '#2a1e16', hs: 0, shirt: '#3a4a7a', pants: '#2a2a32', hat: '#3a4a7a' },
+  hatter:    { skin: 0, hair: '#d86aa8', hs: 3, shirt: '#8a4ad8', pants: '#3a3a48', hat: '#f058a8', x: ['apron'] },
   // vedoucí stadionů
   borek:     { skin: 2, hair: '#5a3a22', hs: 1, shirt: '#a8742a', pants: '#5a4a3a', x: ['beard', 'belt'] },
   hana:      { skin: 0, hair: '#4a7ad8', hs: 2, shirt: '#2ab0b0', pants: '#f4f4f4' },

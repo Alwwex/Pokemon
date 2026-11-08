@@ -55,7 +55,7 @@ function xrayFragment(src) {
     vec3 xdv = xcp / xL;
     vec3 xcf = vXrayW - uXrayC;
     float xt = dot(xcf, xdv);
-    if (xt > 0.0 && xt < xL - 0.5) {
+    if (xt > 0.0 && xt < xL - 0.9) {
       float xd = length(xcf - xdv * xt);
       float xk = 1.0 - smoothstep(uXrayR * 0.5, uXrayR, xd);
       vec2 xq = mod(floor(gl_FragCoord.xy), 2.0);

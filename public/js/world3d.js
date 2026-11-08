@@ -231,7 +231,7 @@ export class Renderer3D {
       else { hemiI = 1.5; sunI = 1.5; sunC = new THREE.Color('#fff0d8'); }
     }
     if (tod === 'evening') { sunC = new THREE.Color('#ffb070'); sunI *= 0.8; hemiSky = new THREE.Color('#ffd8b0'); sky.lerp(new THREE.Color('#f0a070'), 0.5); }
-    if (tod === 'dawn') { sunC = new THREE.Color('#ffd0b0'); sky.lerp(new THREE.Color('#e8b0c0'), 0.35); }
+    if (tod === 'dawn') { sunC = new THREE.Color('#ffe2cc'); sky.lerp(new THREE.Color('#e8b0c0'), 0.25); }
     if (tod === 'night') { sunC = new THREE.Color('#8aa0ff'); sunI = 0.55; hemiI = 0.55; hemiSky = new THREE.Color('#7a8ad8'); sky = new THREE.Color('#141a3a'); }
     this.hemi.intensity = hemiI;
     this.hemi.color.copy(hemiSky);

@@ -23,6 +23,7 @@ export function center(id, name, extraNpcs = []) {
     npcs: [
       { id: `${id}_nurse`, x: 6, y: 2, dir: 'down', look: 'nurse', script: 'heal', name: 'Sestra Alenka' },
       { id: `${id}_clerk`, x: 11, y: 2, dir: 'down', look: 'clerk', script: 'shop', name: 'Prodavač' },
+      { id: `${id}_hats`, x: 11, y: 5, dir: 'left', look: 'hatter', script: 'hats', name: 'Kloboučnice Klára' },
       ...extraNpcs,
     ],
     signs: [],

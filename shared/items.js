@@ -1,6 +1,6 @@
 import { TMS, MOVES } from './moves.js';
 
-// cat: heal (léčení), orb (chytání), tm (technické disky), misc, key (klíčové)
+// cat: heal (léčení), orb (chytání), tm (technické disky), misc, hat (čepice pro tvory), key (klíčové)
 export const ITEMS = {
   lektvar:        { n: 'Lektvar', cat: 'heal', price: 200, heal: 20, d: 'Obnoví tvorovi 20 HP.' },
   super_lektvar:  { n: 'Super lektvar', cat: 'heal', price: 600, heal: 60, d: 'Obnoví tvorovi 60 HP.' },
@@ -30,7 +30,31 @@ export const ITEMS = {
   super_odpuzovac:{ n: 'Super odpuzovač', cat: 'misc', price: 600, repel: 250, noBattle: true, d: 'Na 250 kroků odežene slabé divoké tvory.' },
 
   atlas:          { n: 'Atlas tvorů', cat: 'key', price: 0, d: 'Zaznamenává všechny tvory, které jsi viděl a chytil.' },
+
+  // čepice pro tvory – jen pro parádu, nasazují se v Batohu (tab Čepice)
+  cepice_ksiltovka:   { n: 'Kšiltovka', cat: 'hat', price: 600, d: 'Sportovní čepice s kšiltem. Sluší každému tvorovi.' },
+  cepice_party:       { n: 'Párty čepička', cat: 'hat', price: 500, d: 'Kornoutek s bambulí – pro oslavy po vítězném souboji.' },
+  cepice_masle:       { n: 'Mašle', cat: 'hat', price: 500, d: 'Růžová mašle na hlavu. Roztomilost +100.' },
+  cepice_venecek:     { n: 'Věneček', cat: 'hat', price: 700, d: 'Věneček z lučních kvítků.' },
+  cepice_slamak:      { n: 'Slamák', cat: 'hat', price: 900, d: 'Letní slaměný klobouk s červenou stuhou.' },
+  cepice_kulich:      { n: 'Kulich', cat: 'hat', price: 900, d: 'Teplý pletený kulich s bambulí. Do Mrazova jako stvořený.' },
+  cepice_kucharska:   { n: 'Kuchařská čepice', cat: 'hat', price: 1200, d: 'Vysoká bílá čepice šéfkuchaře.' },
+  cepice_beranice:    { n: 'Beranice', cat: 'hat', price: 1500, d: 'Huňatá zimní beranice s klapkami na uši.' },
+  cepice_helma:       { n: 'Hasičská helma', cat: 'hat', price: 2000, d: 'Červená helma odvážných zachránců.' },
+  cepice_cylindr:     { n: 'Cylindr', cat: 'hat', price: 2500, d: 'Elegantní vysoký klobouk pro gentlemany a dámy.' },
+  cepice_kouzelnicka: { n: 'Kouzelnický klobouk', cat: 'hat', price: 3000, d: 'Špičatý klobouk posetý hvězdami.' },
+  cepice_koruna:      { n: 'Zlatá korunka', cat: 'hat', price: 9999, d: 'Malá zlatá korunka pro opravdové šampiony.' },
 };
+
+// nabídka Kloboučnice podle počtu odznaků
+export const HAT_TIERS = [
+  [0, ['cepice_ksiltovka', 'cepice_party', 'cepice_masle', 'cepice_venecek']],
+  [1, ['cepice_slamak', 'cepice_kulich']],
+  [2, ['cepice_kucharska', 'cepice_beranice']],
+  [3, ['cepice_helma', 'cepice_cylindr']],
+  [4, ['cepice_kouzelnicka']],
+  [6, ['cepice_koruna']],
+];
 
 for (const [id, move] of Object.entries(TMS)) {
   const m = MOVES[move];
@@ -48,6 +72,7 @@ export const BAG_TABS = [
   { id: 'orb', n: 'Orby' },
   { id: 'tm', n: 'Disky' },
   { id: 'misc', n: 'Ostatní' },
+  { id: 'hat', n: 'Čepice' },
   { id: 'key', n: 'Klíčové' },
 ];
 

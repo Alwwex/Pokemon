@@ -748,7 +748,7 @@ export class BattleScene {
     if (!sp.visible || !mon) return;
     const P = rel === 0 ? this.L.me : this.L.foe;
     const size = P.size;
-    const img = monSprite(mon.s, size, { back: rel === 0, shiny: mon.shiny });
+    const img = monSprite(mon.s, size, { back: rel === 0, shiny: mon.shiny, hat: mon.hat });
     const breathe = 1 + Math.sin(now / 420 + rel) * 0.015;
     const w = size * sp.scale;
     const hgt = size * sp.scale * breathe;

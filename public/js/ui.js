@@ -205,7 +205,7 @@ export function ask(question, choices = ['Ano', 'Ne'], opts = {}) {
 function monCard(m, i, sel) {
   const sp = SPECIES[m.s];
   return h('button', { class: 'mon-card' + (sel ? ' sel' : '') + (m.hp === 0 ? ' fainted' : ''), type: 'button', 'data-i': i },
-    h('img', { src: monIconURL(m.s, 64, { shiny: m.shiny }), alt: '' }),
+    h('img', { src: monIconURL(m.s, 64, { shiny: m.shiny, hat: m.hat }), alt: '' }),
     h('div', { class: 'info' },
       h('div', {}, h('span', { class: 'nm' + (m.shiny ? ' shiny' : '') }, monLabel(m), m.shiny ? ' ★' : ''), statusBadge(m.status, m.hp)),
       h('div', { class: 'lv' }, `Úr. ${m.lvl} · `, ...sp.ty.map(typeBadge)),
@@ -279,7 +279,7 @@ export function showSummary(m) {
     const content = h('div');
     const tabs = ['Informace', 'Staty', 'Útoky'];
     const tabRow = h('div', { class: 'tabs-row' });
-    const art = h('div', { class: 'art' }, monSprite(m.s, 220, { shiny: m.shiny }));
+    const art = h('div', { class: 'art' }, monSprite(m.s, 220, { shiny: m.shiny, hat: m.hat }));
     const panel = h('div', { class: 'panel center-panel' },
       h('button', { class: 'close-x', onclick: () => close() }, '×'),
       h('h2', {}, monLabel(m), m.shiny ? h('span', { class: 'shiny' }, ' ★') : null, h('span', { class: 'muted small' }, `  č. ${String(sp.no).padStart(3, '0')} ${sp.n}`)),
@@ -298,6 +298,7 @@ export function showSummary(m) {
           h('p', {}, h('b', {}, 'Povaha: '), nat ? nat.n : m.nature, nat && nat.up ? h('span', { class: 'small muted' }, ` (+${STAT_NAMES[nat.up]}, −${STAT_NAMES[nat.down]})`) : null),
           h('p', {}, h('b', {}, 'Zkušenosti: '), `${ep.cur} / ${ep.need}`, h('div', { class: 'hp' }, h('i', { style: `width:${ep.frac * 100}%;background:#4ab8f0` }))),
           h('p', { class: 'small' }, h('b', {}, 'Trenér: '), m.ot || '—', '  ·  ', h('b', {}, 'Potkán: '), m.met || '—'),
+          m.hat && ITEMS[m.hat] ? h('p', { class: 'small' }, h('b', {}, 'Čepice: '), ITEMS[m.hat].n) : null,
           h('p', { class: 'small muted' }, sp.d));
       } else if (tab === 1) {
         const tbl = h('table', { class: 'stats-table' });
@@ -460,7 +461,7 @@ export function evolveScene(from, to, name, shiny) {
 
 // ---------- batoh ----------
 export function itemTargetsMon(it) {
-  return it.cat === 'heal' || it.cat === 'tm';
+  return it.cat === 'heal' || it.cat === 'tm' || it.cat === 'hat';
 }
 
 export function openBag(ctx, opts = {}) {
@@ -674,13 +675,13 @@ export function openPC(ctx, data) {
       grid.innerHTML = '';
       for (let i = 0; i < 30; i++) {
         const m = data.boxes[box][i];
-        const slot = h('div', { class: 'box-slot' + (sel.area === 'box' && sel.i === i ? ' sel' : '') }, m ? h('img', { src: monIconURL(m.s, 56, { shiny: m.shiny }), title: `${monLabel(m)} úr. ${m.lvl}` }) : null);
+        const slot = h('div', { class: 'box-slot' + (sel.area === 'box' && sel.i === i ? ' sel' : '') }, m ? h('img', { src: monIconURL(m.s, 56, { shiny: m.shiny, hat: m.hat }), title: `${monLabel(m)} úr. ${m.lvl}` }) : null);
         slot.onclick = () => { sel = { area: 'box', i }; render(); act(); };
         grid.appendChild(slot);
       }
       partyCol.innerHTML = '';
       data.party.forEach((m, i) => {
-        const r = h('div', { class: 'party-slot' + (sel.area === 'party' && sel.i === i ? ' sel' : '') }, h('img', { src: monIconURL(m.s, 40, { shiny: m.shiny }) }), `${monLabel(m)} úr. ${m.lvl}`);
+        const r = h('div', { class: 'party-slot' + (sel.area === 'party' && sel.i === i ? ' sel' : '') }, h('img', { src: monIconURL(m.s, 40, { shiny: m.shiny, hat: m.hat }) }), `${monLabel(m)} úr. ${m.lvl}`);
         r.onclick = () => { sel = { area: 'party', i }; render(); act(); };
         partyCol.appendChild(r);
       });
@@ -748,7 +749,7 @@ export function openTrade(ctx) {
     box.innerHTML = '';
     if (!m) { box.append(h('p', { class: 'muted' }, 'Zatím nic')); return; }
     const sp = SPECIES[m.s];
-    box.append(h('img', { src: monIconURL(m.s, 110, { shiny: m.shiny }) }), h('div', {}, h('b', {}, monLabel(m)), m.shiny ? ' ★' : '', ` úr. ${m.lvl}`), h('div', {}, ...sp.ty.map(typeBadge)),
+    box.append(h('img', { src: monIconURL(m.s, 110, { shiny: m.shiny, hat: m.hat }) }), h('div', {}, h('b', {}, monLabel(m)), m.shiny ? ' ★' : '', ` úr. ${m.lvl}`), h('div', {}, ...sp.ty.map(typeBadge)),
       h('div', { class: 'small muted' }, `Trenér: ${m.ot || '?'}`),
       h('button', { class: 'btn', style: 'margin-top:6px', onclick: () => showSummary(m) }, 'Detail'));
   };

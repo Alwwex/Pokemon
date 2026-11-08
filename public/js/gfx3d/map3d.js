@@ -3,6 +3,7 @@
 // se instancují (Instancer), takže i velká mapa je jen pár vykreslovacích volání.
 import { THREE, GEO, worldToon, worldToonUnique, outlineMat, glowTexture, toonGradient } from './core.js';
 import { Batch, Instancer, compose } from './batch.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { themeOf } from '../gfx/tiles.js';
 import { shade, mix, hash2 } from '../gfx/util.js';
 import { buildCreatureLite } from './mon3d.js';
@@ -373,7 +374,14 @@ function waterMesh(map, T, theme) {
 }
 
 // ---------- vegetace ----------
-const BLOB = new THREE.IcosahedronGeometry(1, 1);
+const BLOB = (() => {
+  const g = new THREE.IcosahedronGeometry(1, 1);
+  g.deleteAttribute('normal');
+  g.deleteAttribute('uv');
+  const m = mergeVertices(g);
+  m.computeVertexNormals();
+  return m;
+})();
 const BLADE = new THREE.ConeGeometry(1, 1, 4);
 const PINE_CONE = new THREE.ConeGeometry(1, 1, 8);
 function makeTreeGeos() {
@@ -556,7 +564,7 @@ function buildBuilding(B, b, ctx) {
     case 'mill': {
       const r = Math.min(W, D) / 2 - 0.45;
       const mcz = cz - 0.1;
-      plinth('#a8946a');
+      B.put(GEO.cyl, '#a8946a', cx, 0.06, mcz, r * 1.25, 0.12, r * 1.25);
       B.put(GEO.cyl, '#d8c4a0', cx, 1.35, mcz, r, 2.7, r * 1.0, 0, {});
       B.put(new THREE.CylinderGeometry(r * 0.9, r * 1.1, 2.7, 8), '#d8c4a0', cx, 1.35, mcz, 1, 1, 1);
       B.put(GEO.cone, b.roof || '#a8742a', cx, 3.15, mcz, r * 1.25, 1.1, r * 1.25);
@@ -944,11 +952,18 @@ export function buildMap3D(map) {
           B.box(worldToon('#4ab0f0', { emissive: '#4ab0f0', emissiveIntensity: 0.7 }), X, 0.98, Z + 0.005, 0.52, 0.38, 0.02, 0, { outline: false });
           break;
         case 'h': {
-          B.box('#e8e4ec', X, 0.5, Z + 0.1, 1.0, 1.0, 0.8);
-          B.box('#ff8aa8', X, 1.02, Z + 0.1, 1.0, 0.06, 0.82, 0, { outline: false });
+          // léčebný stroj: když je pod ním zeď, „visí“ na její přední straně
+          let mz = Z + 0.1;
+          if (at(map, x, y + 1) === 'w') {
+            B.box(T.wall || '#f0e4d0', X, 1.05, Z, 1.0, 2.1, 1.0, 0, { outline: false });
+            mz = y + 2 + 0.22;
+          }
+          B.box('#e8e4ec', X, 0.62, mz, 1.0, 1.24, 0.42);
+          B.box('#ff8aa8', X, 1.26, mz, 1.0, 0.06, 0.44, 0, { outline: false });
+          B.box('#c8c4d4', X, 0.3, mz + 0.22, 0.9, 0.5, 0.02, 0, { outline: false });
           const om = worldToon('#ff9ac0', { emissive: '#ff6aa0', emissiveIntensity: 0.5 });
-          for (let k = 0; k < 2; k++) B.put(GEO.sphere, om, X - 0.2 + k * 0.4, 1.12, Z + 0.15, 0.12, 0.12, 0.12);
-          glowSpots.push({ p: new THREE.Vector3(X, 1.2, Z + 0.2), c: '#ff9ac0', s: 1.1 });
+          for (let k = 0; k < 2; k++) B.put(GEO.sphere, om, X - 0.2 + k * 0.4, 1.38, mz, 0.12, 0.12, 0.12);
+          glowSpots.push({ p: new THREE.Vector3(X, 1.45, mz + 0.1), c: '#ff9ac0', s: 1.1 });
           break;
         }
         case 'u':

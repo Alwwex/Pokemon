@@ -969,6 +969,112 @@ function effects(d, A, spec, c) {
   }
 }
 
+// ---------- čepice (kosmetické předměty) ----------
+const HATS2D = {
+  cepice_ksiltovka(g, x, y, r, back) {
+    fillStroke(g, '#e8443a', () => { g.ellipse(x, y + 2, r * 0.82, r * 0.62, 0, Math.PI, TAU); g.closePath(); });
+    if (!back) fillStroke(g, '#c0302a', () => g.ellipse(x + r * 0.15, y + 2, r * 0.75, r * 0.2, 0, 0, TAU));
+    fillStroke(g, '#ffffff', () => g.arc(x, y - r * 0.5, r * 0.12, 0, TAU), false);
+  },
+  cepice_party(g, x, y, r) {
+    fillStroke(g, '#f058a8', () => { g.moveTo(x - r * 0.42, y + 3); g.lineTo(x + r * 0.42, y + 3); g.lineTo(x + r * 0.12, y - r * 1.25); g.closePath(); });
+    for (const [dx, dy] of [[-0.12, -0.1], [0.12, -0.45], [-0.02, -0.75]]) fillStroke(g, '#4ab0f0', () => g.arc(x + r * dx, y + r * dy, r * 0.07, 0, TAU), false);
+    fillStroke(g, '#f4d23a', () => g.arc(x + r * 0.12, y - r * 1.28, r * 0.16, 0, TAU));
+  },
+  cepice_masle(g, x, y, r) {
+    const bx = x + r * 0.45;
+    const by = y + r * 0.15;
+    fillStroke(g, '#f058a8', () => { g.moveTo(bx, by); g.lineTo(bx - r * 0.5, by - r * 0.32); g.lineTo(bx - r * 0.5, by + r * 0.3); g.closePath(); });
+    fillStroke(g, '#f058a8', () => { g.moveTo(bx, by); g.lineTo(bx + r * 0.5, by - r * 0.32); g.lineTo(bx + r * 0.5, by + r * 0.3); g.closePath(); });
+    fillStroke(g, '#d03a88', () => g.arc(bx, by, r * 0.13, 0, TAU));
+  },
+  cepice_venecek(g, x, y, r) {
+    const cols = ['#ff7aa8', '#ffe86a', '#ffffff', '#8ac8ff'];
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI + (i / 8) * Math.PI;
+      fillStroke(g, cols[i % 4], () => g.arc(x + Math.cos(a) * r * 0.85, y + 4 + Math.sin(a) * r * 0.3, r * 0.16, 0, TAU));
+    }
+  },
+  cepice_slamak(g, x, y, r) {
+    fillStroke(g, '#e8c86a', () => g.ellipse(x, y + 3, r * 1.35, r * 0.3, 0, 0, TAU));
+    fillStroke(g, '#e8c86a', () => { g.ellipse(x, y + 1, r * 0.62, r * 0.55, 0, Math.PI, TAU); g.closePath(); });
+    fillStroke(g, '#c83a3a', () => g.rect(x - r * 0.62, y - 2, r * 1.24, 3), false);
+  },
+  cepice_kulich(g, x, y, r) {
+    fillStroke(g, '#3a8ae8', () => { g.ellipse(x, y + 4, r * 0.86, r * 0.82, 0, Math.PI, TAU); g.closePath(); });
+    fillStroke(g, '#ffffff', () => g.rect(x - r * 0.88, y + 1, r * 1.76, 4));
+    fillStroke(g, '#ffffff', () => g.arc(x, y - r * 0.8, r * 0.24, 0, TAU));
+  },
+  cepice_kucharska(g, x, y, r) {
+    fillStroke(g, '#ffffff', () => g.rect(x - r * 0.55, y - r * 0.45, r * 1.1, r * 0.55));
+    fillStroke(g, '#ffffff', () => { g.arc(x - r * 0.35, y - r * 0.65, r * 0.38, 0, TAU); });
+    fillStroke(g, '#ffffff', () => { g.arc(x + r * 0.35, y - r * 0.65, r * 0.38, 0, TAU); });
+    fillStroke(g, '#ffffff', () => { g.arc(x, y - r * 0.95, r * 0.42, 0, TAU); }, true);
+  },
+  cepice_beranice(g, x, y, r) {
+    for (const sx of [-1, 1]) fillStroke(g, '#6a4a36', () => g.ellipse(x + sx * r * 0.85, y + r * 0.55, r * 0.22, r * 0.45, 0, 0, TAU));
+    fillStroke(g, '#5a4030', () => { g.ellipse(x, y + 3, r * 0.92, r * 0.85, 0, Math.PI, TAU); g.closePath(); });
+    for (let i = 0; i < 5; i++) fillStroke(g, '#6a4a36', () => g.arc(x - r * 0.6 + i * r * 0.3, y - r * 0.55 + Math.sin(i) * 2, r * 0.18, 0, TAU), false);
+  },
+  cepice_helma(g, x, y, r, back) {
+    fillStroke(g, '#d83a2a', () => g.ellipse(x, y + 4, r * 1.1, r * 0.22, 0, 0, TAU));
+    fillStroke(g, '#d83a2a', () => { g.ellipse(x, y + 3, r * 0.82, r * 0.75, 0, Math.PI, TAU); g.closePath(); });
+    if (!back) fillStroke(g, '#f4d23a', () => g.rect(x - r * 0.14, y - r * 0.45, r * 0.28, r * 0.32));
+  },
+  cepice_cylindr(g, x, y, r) {
+    fillStroke(g, '#1e1e2a', () => g.ellipse(x, y + 3, r * 1.05, r * 0.25, 0, 0, TAU));
+    fillStroke(g, '#1e1e2a', () => g.rect(x - r * 0.58, y - r * 1.15, r * 1.16, r * 1.18));
+    fillStroke(g, '#8a4ad8', () => g.rect(x - r * 0.58, y - r * 0.25, r * 1.16, r * 0.22), false);
+  },
+  cepice_kouzelnicka(g, x, y, r) {
+    fillStroke(g, '#5a3ab0', () => g.ellipse(x, y + 3, r * 1.1, r * 0.26, 0, 0, TAU));
+    fillStroke(g, '#5a3ab0', () => { g.moveTo(x - r * 0.6, y + 2); g.quadraticCurveTo(x - r * 0.1, y - r * 0.6, x + r * 0.5, y - r * 1.5); g.quadraticCurveTo(x + r * 0.2, y - r * 0.5, x + r * 0.6, y + 2); g.closePath(); });
+    for (const [dx, dy] of [[-0.15, -0.2], [0.18, -0.7]]) fillStroke(g, '#f4d23a', () => star(g, x + r * dx, y + r * dy, r * 0.14), false);
+  },
+  cepice_koruna(g, x, y, r) {
+    fillStroke(g, '#f4c63a', () => {
+      g.moveTo(x - r * 0.6, y + 2);
+      g.lineTo(x - r * 0.6, y - r * 0.5);
+      g.lineTo(x - r * 0.3, y - r * 0.15);
+      g.lineTo(x, y - r * 0.65);
+      g.lineTo(x + r * 0.3, y - r * 0.15);
+      g.lineTo(x + r * 0.6, y - r * 0.5);
+      g.lineTo(x + r * 0.6, y + 2);
+      g.closePath();
+    });
+    fillStroke(g, '#3a8ae8', () => g.arc(x, y - r * 0.08, r * 0.11, 0, TAU), false);
+  },
+};
+
+function fillStroke(g, color, path, stroke = true) {
+  g.beginPath();
+  path();
+  g.fillStyle = color;
+  g.fill();
+  if (stroke) { g.strokeStyle = '#1a1222'; g.lineWidth = 1.4; g.stroke(); }
+}
+
+function star(g, x, y, r) {
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? r * 0.45 : r;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+}
+
+export const HAT_IDS = Object.keys(HATS2D);
+
+function drawHat(g, A, hat, back) {
+  const f = HATS2D[hat];
+  if (!f || !A.top) return;
+  const r = A.head ? A.head.r : 14;
+  g.save();
+  g.lineJoin = 'round';
+  f(g, A.top.x, A.top.y + r * 0.18, r, back);
+  g.restore();
+}
+
 // ---------- hlavní funkce ----------
 function shinyColor(hex) {
   const [r, g, b] = hexToRgb(hex);
@@ -1030,6 +1136,7 @@ export function drawCreature(g, speciesKey, opts = {}) {
   } else marks(d, A, spec, c, true);
   extrasFront(d, A, spec, c, showBack);
   if (showBack) tail(d, A, spec, c);
+  if (opts.hat) drawHat(g, A, opts.hat, showBack);
   effects(d, A, spec, c);
   g.restore();
 }
@@ -1038,7 +1145,7 @@ const cache = new Map();
 
 // Vrátí plátno s tvorem o velikosti `size` px (uloženo do mezipaměti).
 export function monSprite(speciesKey, size = 192, opts = {}) {
-  const key = `${speciesKey}|${size}|${opts.back ? 1 : 0}|${opts.shiny ? 1 : 0}|${opts.silhouette ? 1 : 0}`;
+  const key = `${speciesKey}|${size}|${opts.back ? 1 : 0}|${opts.shiny ? 1 : 0}|${opts.silhouette ? 1 : 0}|${opts.hat || ''}`;
   let c = cache.get(key);
   if (c) return c;
   c = document.createElement('canvas');
@@ -1058,7 +1165,7 @@ export function monSprite(speciesKey, size = 192, opts = {}) {
 }
 
 export function monIconURL(speciesKey, size = 48, opts = {}) {
-  const key = `url|${speciesKey}|${size}|${opts.shiny ? 1 : 0}|${opts.silhouette ? 1 : 0}`;
+  const key = `url|${speciesKey}|${size}|${opts.shiny ? 1 : 0}|${opts.silhouette ? 1 : 0}|${opts.hat || ''}`;
   let u = cache.get(key);
   if (u) return u;
   u = monSprite(speciesKey, size, opts).toDataURL();
