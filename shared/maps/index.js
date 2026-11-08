@@ -70,7 +70,7 @@ function buildSolid(map) {
   for (const b of map.buildings) {
     for (let y = b.y; y < b.y + b.h; y++) {
       for (let x = b.x; x < b.x + b.w; x++) {
-        if (x === b.x + b.door && y === b.y + b.h - 1 && b.to) continue;
+        if (x === b.x + b.door && y === b.y + b.h - 1 && (b.to || b.open)) continue;
         if (x >= 0 && y >= 0 && x < map.w && y < map.h) solid[y * map.w + x] = 1;
       }
     }

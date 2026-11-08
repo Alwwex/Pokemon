@@ -36,12 +36,57 @@ for (const [id, it] of Object.entries(ITEMS)) if (!it.n || !it.cat) err(`předm�
 
 let mapsChecked = 0;
 try {
-  const { MAPS, validateMaps } = await import('../shared/maps/index.js');
-  const mapErrors = validateMaps();
-  mapErrors.forEach(err);
-  mapsChecked = Object.keys(MAPS).length;
+  const maps = await import('../shared/maps/index.js');
+  maps.validateMaps().forEach(err);
+  reachability(maps).forEach(err);
+  mapsChecked = Object.keys(maps.MAPS).length;
 } catch (e) {
   if (e.code !== 'ERR_MODULE_NOT_FOUND') err('mapy: ' + e.stack);
+}
+
+// Prohledá svět do šířky od startu (s odemčenými podmínkami) a ověří,
+// že je dosažitelná každá mapa, každé NPC, předmět, cedule i dveře.
+function reachability({ MAPS, START, solidAt, warpAt, edgeTarget, npcVisible }) {
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const ctx = { flags: { starter: 'jiskrik', soumrak_boss: true, champion: true }, badges: 6, trainers: {}, items: {} };
+  const key = (m, x, y) => `${m}|${x}|${y}`;
+  const blocked = (map, x, y) => solidAt(map, x, y) || map.npcs.some((n) => n.x === x && n.y === y && npcVisible(n, ctx));
+  const seen = new Set([key(START.map, START.x, START.y)]);
+  const q = [[START.map, START.x, START.y]];
+  const push = (m, x, y) => { const k = key(m, x, y); if (!seen.has(k)) { seen.add(k); q.push([m, x, y]); } };
+  while (q.length) {
+    const [mid, x, y] = q.shift();
+    const map = MAPS[mid];
+    const sw = warpAt(map, x, y, null);
+    if (sw) push(sw.to, sw.tx, sw.ty);
+    for (const [d, [dx, dy]] of Object.entries(DIRS)) {
+      const pw = warpAt(map, x, y, d);
+      if (pw) push(pw.to, pw.tx, pw.ty);
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) {
+        const tg = edgeTarget(map, x, y, d);
+        if (tg && !blocked(tg.map, tg.x, tg.y)) push(tg.map.id, tg.x, tg.y);
+      } else if (map.rows[ny][nx] === '^') {
+        if (d === 'down' && ny + 1 < map.h && !blocked(map, nx, ny + 1)) push(mid, nx, ny + 1);
+      } else if (!blocked(map, nx, ny)) push(mid, nx, ny);
+    }
+  }
+  const out = [];
+  const reached = new Set([...seen].map((k) => k.split('|')[0]));
+  for (const id of Object.keys(MAPS)) if (!reached.has(id)) out.push(`dosažitelnost: mapa ${id} není dosažitelná`);
+  for (const map of Object.values(MAPS)) {
+    const objs = [...map.npcs, ...map.items, ...map.legends, ...map.signs.map((g, i) => ({ ...g, id: 'cedule' + i }))];
+    for (const o of objs) {
+      const ok = Object.values(DIRS).some(([dx, dy]) => seen.has(key(map.id, o.x + dx, o.y + dy))
+        || (map.rows[o.y + dy] && map.rows[o.y + dy][o.x + dx] === 'k' && seen.has(key(map.id, o.x + 2 * dx, o.y + 2 * dy))));
+      if (!ok) out.push(`dosažitelnost: ${map.id}/${o.id} (${o.x},${o.y}) nelze oslovit`);
+    }
+    for (const b of map.buildings) {
+      if ((b.to || b.open) && !seen.has(key(map.id, b.x + b.door, b.y + b.h))) out.push(`dosažitelnost: ${map.id} – ke dveřím ${b.to || b.style} se nedá dojít`);
+    }
+  }
+  return out;
 }
 
 if (errors.length) {
