@@ -3,6 +3,7 @@ import { net } from './net.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { World } from './world.js';
+import { Renderer2D } from './render2d.js';
 import { BattleScene } from './battle.js';
 import {
   UI, h, dialog, ask, toast, makeMenu, openPanel, pickMon, showSummary, openBag, openDex, openShop, openPC, openTrade,
@@ -20,6 +21,7 @@ const BADGES = ['', 'Mlýnský kámen', 'Kapka', 'Jiskra', 'Lísteček', 'Lucern
 const BADGE_COLORS = ['', '#a8742a', '#3a7ad8', '#f2c42c', '#4aa84a', '#8a4ad8', '#7ad0f0'];
 
 const canvas = $('game');
+const canvas3d = $('game3d');
 const app = {
   me: null,
   scene: 'login',
@@ -36,7 +38,39 @@ const app = {
   busy: () => app.processing || app.queue.length > 0 || battle.active,
 };
 app.me = null;
-const world = new World(canvas, { ...app, me: () => app.me, ctx: () => app.ctx(), send: app.send, busy: () => app.busy() });
+const world = new World({ ...app, me: () => app.me, ctx: () => app.ctx(), send: app.send, busy: () => app.busy() });
+
+// ---------- grafika: 3D (výchozí) nebo klasické 2D ----------
+const GFX_KEY = 'monsterra_gfx';
+const GFX_NAMES = { '3d': '3D', '3d-low': '3D (rychlé, bez stínů)', '2d': '2D pixel' };
+let gfxMode = (() => { try { return localStorage.getItem(GFX_KEY) || '3d'; } catch { return '3d'; } })();
+let world3dMod = null;
+async function setGfx(mode) {
+  let r = null;
+  if (mode !== '2d') {
+    try {
+      if (!world3dMod) world3dMod = await import('./world3d.js');
+      if (!world3dMod.webglAvailable()) throw new Error('WebGL není k dispozici');
+      if (world.renderer) world.renderer.dispose();
+      world.renderer = null;
+      r = new world3dMod.Renderer3D(canvas3d, canvas, { quality: mode === '3d-low' ? 'low' : undefined });
+      canvas3d.classList.remove('hidden');
+    } catch (e) {
+      console.warn('3D grafiku se nepodařilo spustit, používám 2D.', e);
+      mode = '2d';
+    }
+  }
+  if (!r) {
+    if (world.renderer) world.renderer.dispose();
+    r = new Renderer2D(canvas);
+    canvas3d.classList.add('hidden');
+  }
+  gfxMode = mode;
+  try { localStorage.setItem(GFX_KEY, mode); } catch { /* */ }
+  world.setRenderer(r);
+}
+app.gfxReady = setGfx(gfxMode);
+app.renderer3d = () => (world.renderer && world.renderer.renderer ? world.renderer : null);
 const uiCtx = { me: () => app.me, send: app.send, onShopResult: null, onPC: null };
 app.uiCtx = uiCtx;
 const battle = new BattleScene(canvas, app);
@@ -531,13 +565,18 @@ async function settings() {
       `Hudba: ${audio.musicOn ? 'zapnuto' : 'vypnuto'}`,
       `Zvuky: ${audio.sfxOn ? 'zapnuto' : 'vypnuto'}`,
       `Rychlost textu: ${speeds[UI.textSpeed] || 'normální'}`,
+      `Grafika: ${GFX_NAMES[gfxMode] || gfxMode}`,
       'Odhlásit se',
       'Zpět',
-    ], { cancel: 4 });
+    ], { cancel: 5 });
     if (c === 0) { audio.setMusic(!audio.musicOn); refreshHud(); }
     else if (c === 1) audio.setSfx(!audio.sfxOn);
     else if (c === 2) UI.textSpeed = UI.textSpeed === 22 ? 8 : UI.textSpeed === 8 ? 40 : 22;
     else if (c === 3) {
+      const order = ['3d', '3d-low', '2d'];
+      await setGfx(order[(order.indexOf(gfxMode) + 1) % order.length]);
+      toast(`Grafika: ${GFX_NAMES[gfxMode]}`);
+    } else if (c === 4) {
       const sure = await ask('Opravdu se odhlásit? Hra se ukládá automaticky.', ['Ne', 'Ano']);
       if (sure === 1) {
         saveCreds(null);

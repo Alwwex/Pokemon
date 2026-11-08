@@ -11,6 +11,12 @@ import { Game } from './game.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
 const SHARED = path.join(ROOT, 'shared');
+const MODELS = path.join(PUBLIC, 'models');
+// Knihovny z node_modules, které klient potřebuje (bez CDN).
+const VENDOR = {
+  '/vendor/three/': path.join(ROOT, 'node_modules', 'three', 'build'),
+  '/vendor/three-addons/': path.join(ROOT, 'node_modules', 'three', 'examples', 'jsm'),
+};
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT, 'data');
@@ -27,6 +33,8 @@ const MIME = {
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
   '.webmanifest': 'application/manifest+json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
 };
 
 const cache = new Map();
@@ -37,6 +45,9 @@ function resolveFile(urlPath) {
   if (p.includes('\0')) return null;
   let base = PUBLIC;
   if (p.startsWith('/shared/')) { base = SHARED; p = p.slice('/shared'.length); }
+  for (const [prefix, dir] of Object.entries(VENDOR)) {
+    if (p.startsWith(prefix)) { base = dir; p = p.slice(prefix.length - 1); break; }
+  }
   if (p === '/' || p === '') p = '/index.html';
   const full = path.resolve(base, '.' + path.posix.normalize(p));
   if (!full.startsWith(base + path.sep)) return null;
@@ -48,6 +59,13 @@ function serve(req, res) {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     return res.end('ok');
+  }
+  if (req.url === '/api/models') {
+    // seznam vlastních 3D modelů tvorů (public/models/<druh>.glb)
+    let list = [];
+    try { list = fs.readdirSync(MODELS).filter((f) => /^[a-z0-9_]+\.glb$/.test(f)).map((f) => f.slice(0, -4)); } catch { /* složka nemusí existovat */ }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return res.end(JSON.stringify(list));
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405);

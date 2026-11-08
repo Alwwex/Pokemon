@@ -27,6 +27,8 @@ button, input, select { font-family: inherit; font-size: inherit; }
 .small { font-size: 14px; }
 
 #game { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+#game3d { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; display: block; }
+#game3d.hidden { display: none; }
 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }

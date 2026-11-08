@@ -62,7 +62,23 @@ export class BattleScene {
       foe: { x: W * (portrait ? 0.68 : 0.7), y: usable * (portrait ? 0.48 : 0.5), size: Math.round(s * (portrait ? 0.42 : 0.3)) },
       me: { x: W * (portrait ? 0.3 : 0.27), y: usable * (portrait ? 0.93 : 0.97), size: Math.round(s * (portrait ? 0.52 : 0.4)) },
     };
+    this.uiH = uiH;
     this.bg = null;
+    if (this.view3d) {
+      this.view3d.layout(W, H, uiH);
+      this.sync3dLayout();
+    }
+  }
+
+  // ve 3D režimu se polohy pro 2D efekty berou z promítnutí 3D tvorů
+  sync3dLayout() {
+    const v = this.view3d;
+    for (const [rel, P] of [[0, this.L.me], [1, this.L.foe]]) {
+      const f = v.screenOf(rel, 0);
+      P.x = f.x;
+      P.y = f.y;
+      P.size = v.screenSize(rel);
+    }
   }
 
   makeBg() {
@@ -243,6 +259,15 @@ export class BattleScene {
     this.firstFoeSend = true;
     this.trainerImg = msg.foe.look ? trainerPortrait(msg.foe.look, 8) : null;
     this.trainerX = null;
+    this.view3d = null;
+    this.L = null;
+    const r3 = this.app.renderer3d ? this.app.renderer3d() : null;
+    if (r3) {
+      try {
+        const mod = await import('./battle3d.js');
+        this.view3d = new mod.BattleView3D(r3, this.env, this.night);
+      } catch (e) { console.warn('3D souboj se nepodařilo připravit', e); this.view3d = null; }
+    }
     this.layout();
     this.buildUI();
     this.onResize = () => { this.layout(); this.positionBalls(); };
@@ -352,6 +377,7 @@ export class BattleScene {
   }
 
   center(rel) {
+    if (this.view3d) return this.view3d.screenOf(rel, 0.45);
     const p = rel === 0 ? this.L.me : this.L.foe;
     return { x: p.x, y: p.y - p.size * 0.38 };
   }
@@ -380,6 +406,11 @@ export class BattleScene {
   }
 
   async moveAnim(rel, moveId) {
+    if (this.view3d) this.view3d.focus(rel);
+    try { await this.moveAnim2(rel, moveId); } finally { if (this.view3d) this.view3d.focus(null); }
+  }
+
+  async moveAnim2(rel, moveId) {
     const mv = MOVES[moveId];
     if (!mv) return;
     const type = mv.t || 'normal';
@@ -692,6 +723,7 @@ export class BattleScene {
     this.anims = [];
     this.parts = [];
     this.orb = null;
+    if (this.view3d) { this.view3d.dispose(); this.view3d = null; }
   }
 
   // ---------- kreslení ----------
@@ -819,23 +851,44 @@ export class BattleScene {
   }
 
   draw(now) {
-    if (!this.active) return;
+    if (!this.active || !this.L) return;
     const g = this.g;
     const { W, H } = this.L;
-    if (!this.bg || this.bg.width !== W) this.makeBg();
+    const v3 = this.view3d;
+    if (v3) {
+      v3.render(now, this);
+      this.sync3dLayout();
+      g.clearRect(0, 0, W, H);
+    } else if (!this.bg || this.bg.width !== W) this.makeBg();
     g.save();
     if (this.shake && this.shake.until > now) {
       const a = this.shake.amp;
       g.translate((Math.random() - 0.5) * a, (Math.random() - 0.5) * a);
     }
-    g.drawImage(this.bg, 0, 0);
+    if (!v3) g.drawImage(this.bg, 0, 0);
     if (this.intro > 0) {
       g.fillStyle = '#000';
       g.fillRect(0, 0, W, H * 0.5 * this.intro);
       g.fillRect(0, H - H * 0.5 * this.intro, W, H * 0.5 * this.intro);
     }
-    this.drawSprite(g, 1, now);
-    this.drawSprite(g, 0, now);
+    if (!v3) {
+      this.drawSprite(g, 1, now);
+      this.drawSprite(g, 0, now);
+    } else {
+      for (const rel of [0, 1]) {
+        const mon = this.mons[rel];
+        if (!mon || mon.status !== 'slp' || !this.spr[rel].visible) continue;
+        const top = v3.screenOf(rel, 1.05);
+        const size = this.L[rel ? 'foe' : 'me'].size;
+        g.fillStyle = '#ffffff';
+        g.strokeStyle = '#2b2742';
+        g.lineWidth = 3;
+        g.font = `700 ${Math.round(Math.max(18, size * 0.14))}px "Pixelify Sans", sans-serif`;
+        const zy = top.y - Math.abs(Math.sin(now / 500)) * 12;
+        g.strokeText('z', top.x + size * 0.18, zy);
+        g.fillText('z', top.x + size * 0.18, zy);
+      }
+    }
     if (this.trainerX != null && this.trainerImg) {
       const s = this.L.foe.size * 1.05;
       const tw = s * (this.trainerImg.width / this.trainerImg.height);
