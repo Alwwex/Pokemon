@@ -42,6 +42,12 @@
     h2 { font-size: 17px; margin: 4px 0 8px; }
     .hint { font-size: 12px; color: var(--muted); }
     .ok { color: #2e8a3a; }
+    .drop { border: 3px dashed #c8b8a0; border-radius: 12px; padding: 14px; text-align: center; color: var(--muted); background: #fffdf6; }
+    .drop.over { border-color: var(--accent); background: #fff0e8; color: var(--ink); }
+    .filebtn { color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: underline; }
+    #view.dragover::after { content: 'Pusť soubor .glb'; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(232,68,58,.35); color: #fff; font-size: 26px; }
+    .glbinfo { font-size: 13px; margin: 6px 0; }
+    .glbinfo b { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -80,6 +86,30 @@
         <button class="primary" id="copy">Kopírovat kód</button>
         <button id="copyNew">Kopírovat jako nového tvora</button>
         <span id="copied" class="hint"></span>
+      </div>
+      <h2 style="margin-top:14px">Vlastní 3D model (.glb)</h2>
+      <div class="drop" id="drop">Přetáhni sem soubor <b>.glb</b> (nebo ho <label class="filebtn">vyber<input type="file" id="glbfile" accept=".glb" hidden></label>) – hned uvidíš, jak bude tvor vypadat ve hře. Soubor se nikam neposílá.</div>
+      <div id="glbpanel" hidden>
+        <p class="glbinfo" id="glbinfo"></p>
+        <div class="grid">
+          <label>Otočení <span><input type="range" id="g_rot" min="-180" max="180" step="5" value="0"> <span id="g_rot_v">0°</span></span></label>
+          <label>Velikost <span><input type="range" id="g_scale" min="0.4" max="2.5" step="0.05" value="1"> <span id="g_scale_v">1×</span></span></label>
+          <label>Výška nad zemí <input type="range" id="g_lift" min="-0.5" max="0.5" step="0.01" value="0"></label>
+          <label>Styl <select id="g_toon"><option value="auto">automaticky</option><option value="true">kreslený (toon)</option><option value="false">původní materiály</option></select></label>
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="g_outline" checked> černé obrysy</label>
+        </div>
+        <div id="g_anims"></div>
+        <h2 style="margin-top:10px">Části modelu</h2>
+        <p class="hint">Odškrtni, co ke tvorovi nepatří (podstavec, pozadí, krabice…).</p>
+        <div class="x-list" id="g_parts"></div>
+        <h2 style="margin-top:10px">Nastavení modelu</h2>
+        <textarea id="g_cfg" readonly style="min-height:90px"></textarea>
+        <div class="row">
+          <button class="primary" id="g_copy">Kopírovat nastavení</button>
+          <button id="g_remove">Zrušit model</button>
+          <span id="g_copied" class="hint"></span>
+        </div>
+        <p class="hint">Do hry: soubor ulož jako <code>public/models/<b class="gkey"></b>.glb</code> a nastavení (pokud není prázdné) jako <code>public/models/<b class="gkey"></b>.json</code>. Pak jen obnov stránku hry (F5) – server není potřeba restartovat. Model se ukáže ve světě, v soubojích, za hráčem i na ikonách v menu.</p>
       </div>
       <p class="hint">Postup: vyber tvora, uprav ho, klikni na <b>Kopírovat kód</b> a v souboru <code>shared/species.js</code> u daného tvora nahraď řádek <code>art: {…}</code>. Po restartu serveru (<code>npm start</code>) se změna projeví všem hráčům. Vlastní 3D model ve formátu <code>.glb</code> stačí nahrát do <code>public/models/&lt;klíč&gt;.glb</code>.</p>
     </section>

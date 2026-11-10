@@ -1,11 +1,14 @@
 # Vlastní 3D modely tvorů
 
-Sem můžeš vložit vlastní 3D model tvora ve formátu **glTF Binary (`.glb`)**.
-Soubor pojmenuj podle klíče druhu ze `shared/species.js`, např. `jiskrik.glb`.
+Sem patří vlastní 3D modely tvorů ve formátu **glTF Binary (`.glb`)**.
 
-- Hra model sama zmenší/zvětší na správnou výšku a postaví ho na zem.
-- Tvor má koukat dopředu ve směru osy **+Z**. V Blenderu stačí, aby se díval do kamery
-  v pohledu zepředu (Numpad 1) a exportovat glTF s výchozí volbou „+Y Up“.
-- Pokud soubor chybí nebo se nepodaří načíst, použije se automaticky procedurální model.
+- Soubor pojmenuj podle klíče druhu ze `shared/species.js`, např. `jiskrik.glb`.
+- Volitelné nastavení dej vedle jako `jiskrik.json` (otočení, velikost, skryté části, styl,
+  jména animací). Nejsnáz ho připravíš v **Dílně tvorů** (`/studio.html`): přetáhni tam model,
+  uprav ho a zkopíruj nastavení.
+- Po přidání nebo změně stačí obnovit stránku hry (F5).
+- Model se použije ve světě, v soubojích, na ikonách v menu i v Atlasu. Když chybí nebo nejde
+  načíst, hra použije vygenerovaného tvora.
+- Používej jen modely, které smíš použít (vlastní, CC0, CC-BY s uvedením autora).
 
 Podrobný návod je v hlavním `README.md` v části „Jak přidat nebo změnit tvora“.

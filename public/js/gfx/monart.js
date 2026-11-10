@@ -1147,17 +1147,30 @@ export function drawArt(g, spec, opts = {}) {
 
 const cache = new Map();
 
+// Vlastní 3D modely (public/models) umí dodat vlastní obrázek – registruje je gfx3d/mon3d.js.
+let customSpriteProvider = null;
+export function setCustomSpriteProvider(fn) { customSpriteProvider = fn; }
+export function invalidateSprites(speciesKey) {
+  for (const k of [...cache.keys()]) if (k.startsWith(speciesKey + '|') || k.startsWith('url|' + speciesKey + '|')) cache.delete(k);
+}
+
 // Vrátí plátno s tvorem o velikosti `size` px (uloženo do mezipaměti).
 export function monSprite(speciesKey, size = 192, opts = {}) {
   const key = `${speciesKey}|${size}|${opts.back ? 1 : 0}|${opts.shiny ? 1 : 0}|${opts.silhouette ? 1 : 0}|${opts.hat || ''}`;
   let c = cache.get(key);
   if (c) return c;
-  c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
+  const custom = customSpriteProvider ? customSpriteProvider(speciesKey, size, opts) : null;
+  if (custom) c = custom;
+  else {
+    c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+  }
   const g = c.getContext('2d');
-  g.scale(size / 100, size / 100);
-  drawCreature(g, speciesKey, opts);
+  if (!custom) {
+    g.scale(size / 100, size / 100);
+    drawCreature(g, speciesKey, opts);
+  }
   if (opts.silhouette) {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-in';

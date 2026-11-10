@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Store } from './store.js';
 import { Game } from './game.js';
+import { listModels } from './models.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -35,6 +36,7 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
   '.glb': 'model/gltf-binary',
   '.gltf': 'model/gltf+json',
+  '.wasm': 'application/wasm',
 };
 
 const cache = new Map();
@@ -61,11 +63,9 @@ function serve(req, res) {
     return res.end('ok');
   }
   if (req.url === '/api/models') {
-    // seznam vlastních 3D modelů tvorů (public/models/<druh>.glb)
-    let list = [];
-    try { list = fs.readdirSync(MODELS).filter((f) => /^[a-z0-9_]+\.glb$/.test(f)).map((f) => f.slice(0, -4)); } catch { /* složka nemusí existovat */ }
+    // vlastní 3D modely tvorů: public/models/<druh>.glb (+ volitelně <druh>.json s nastavením)
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
-    return res.end(JSON.stringify(list));
+    return res.end(JSON.stringify(listModels(MODELS)));
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405);

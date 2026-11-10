@@ -24,7 +24,8 @@ tvorové jim chodí v patách, píšou si v chatu, vyzývají se k soubojům a v
 - **Čepice pro tvory**: 12 kosmetických čepic (kšiltovka, cylindr, kouzelnický klobouk,
   korunka…) u Kloboučnice v každém Centru tvorů. Čepici vidí i ostatní hráči.
 - **Mapa regionu** v menu – města, cesty, získané odznaky, kde jsi ty a kde jsou hráči online.
-- **Dílna tvorů** (`/studio.html`) – editor vzhledu tvorů s živým 3D a 2D náhledem.
+- **Dílna tvorů** (`/studio.html`) – editor vzhledu tvorů s živým 3D a 2D náhledem; přetažením
+  souboru `.glb` si tam vyzkoušíš i vlastní 3D model tvora (i s animacemi).
 - Klasická **2D pixelová grafika** zůstává jako volba v Nastavení (pro slabší zařízení).
 - **82 původních tvorů** (většina inspirovaná českými pověstmi a přírodou – Hastrman,
   Bludička, Rarášek, Polednice, Krakonoš, Ohnivák, Kapřík, Muchomor…), každý s vlastním
@@ -173,15 +174,54 @@ podle úrovní (`ls`) a případně vývoj (`evo`). Aby se objevoval v trávě, 
 `enc` některé mapy v `shared/maps/`. Nakonec spusť `npm run check` – řekne ti, jestli je vše v
 pořádku (např. neznámý útok).
 
-### Vlastní 3D model (Blender apod.)
+### Vlastní 3D model (`.glb`) – přetáhni a hotovo
 
-Chceš-li tvora opravdu vymodelovat, ulož model jako **glTF Binary (`.glb`)** do složky
-`public/models/` a pojmenuj ho podle klíče tvora, např. `public/models/jiskrik.glb`.
-Hra ho při spuštění najde a použije **místo procedurálního modelu** – v souboji, ve světě i za
-hráčem. Model sám zmenší na správnou výšku a postaví na zem. Tvor se má v Blenderu dívat do kamery
-v pohledu zepředu (Numpad 1, tedy směrem −Y); export glTF s výchozí volbou „+Y Up“ to převede
-na osu +Z, kterou hra bere jako „dopředu“. Když soubor smažeš, vrátí se procedurální tvor.
-Seznam nalezených modelů vrací adresa `/api/models`.
+Místo vygenerovaného tvora můžeš použít libovolný 3D model ve formátu **glTF Binary (`.glb`)** –
+vlastní z Blenderu, nebo stažený model s licencí, která to dovoluje.
+
+1. Otevři **Dílnu tvorů** (`/studio.html`), vyber tvora, kterého má model nahradit, a soubor
+   `.glb` **přetáhni do okna** (nebo klikni na „vyber“). Soubor se nikam neposílá, jen se ukáže.
+2. Uvidíš ho přesně tak, jak bude ve hře – ve 3D i jako obrázek do menu. Můžeš:
+   - **otočit** ho čelem k červené šipce (tak se tvor ve hře dívá dopředu),
+   - změnit **velikost** a **výšku nad zemí**,
+   - **odškrtnout části**, které k tvorovi nepatří (podstavec, pozadí, krabice ze scény),
+   - zvolit **styl**: automaticky (osvětlené materiály převede na kreslené, neosvětlené
+     nechá), kreslený, nebo původní materiály; a zapnout/vypnout černé obrysy,
+   - pokud má model **animace**, vybrat, která je klid, chůze a útok (jinak se poznají podle
+     jména – Idle, Walk, Attack…) a hned je vyzkoušet.
+3. Soubor ulož jako `public/models/<klíč>.glb` (např. `public/models/jiskrik.glb`) a pokud
+   jsi něco upravoval, zkopírované nastavení ulož vedle jako `public/models/<klíč>.json`.
+4. **Obnov stránku hry (F5)** – server restartovat nemusíš.
+
+Model se pak ukáže **ve světě, za hráčem, v soubojích (i s animací útoku), na ikonách v menu,
+v Atlasu i ve 2D režimu**. Hra ho sama zmenší na výšku tvora a postaví na zem, umí modely
+s kostrou a animacemi i komprimované modely (Draco, Meshopt). Čepice se nasadí navrch modelu.
+Když soubor smažeš, vrátí se vygenerovaný tvor; když se model nepodaří načíst, hra ho přeskočí.
+
+Nastavení (`<klíč>.json`) může obsahovat jen tyto položky:
+
+```json
+{
+  "rotateY": 90,
+  "scale": 1.2,
+  "lift": 0.05,
+  "toon": "auto",
+  "outline": true,
+  "hide": ["Podstavec"],
+  "idle": "Idle",
+  "walk": "Walk",
+  "attack": "Attack"
+}
+```
+
+`rotateY` je otočení ve stupních, `scale` násobek výšky tvora, `lift` posun nahoru, `toon`
+`"auto"`/`true`/`false`, `hide` jména částí ke skrytí, `idle`/`walk`/`attack` jména animací.
+Seznam nalezených modelů s nastavením vrací adresa `/api/models`.
+
+> **Pozor na licence.** Model musíš smět použít: vlastní, nebo s licencí CC0/CC-BY (např.
+> Quaternius, Kenney, Poly Pizza; u CC-BY uveď autora). Modely Pokémonů a jiných cizích postav
+> do hry nedávej – pokud by hra byla veřejně online, je to přesně důvod, proč Nintendo zrušilo
+> Brick Bronze.
 
 ## Pro vývojáře
 

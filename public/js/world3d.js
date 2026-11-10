@@ -4,7 +4,7 @@
 import { THREE, XRAY, glowTexture, starTexture, toon, disposeTree } from './gfx3d/core.js';
 import { buildMap3D } from './gfx3d/map3d.js';
 import { buildChar3D, animateChar, DIR_ROT } from './gfx3d/char3d.js';
-import { buildCreature, buildCreatureLite, animateCreature, loadCustomModelList } from './gfx3d/mon3d.js';
+import { buildCreature, buildCreatureLite, animateCreature, loadCustomModelList, hasCustomModel } from './gfx3d/mon3d.js';
 import { npcVisible, itemVisible, legendVisible, passable } from '/shared/maps/index.js';
 import { DIRS } from '/shared/tiles.js';
 import { drawNameTag, drawBubble, playerLabel } from './labels.js';
@@ -332,7 +332,7 @@ export class Renderer3D {
 
   followerEnt(key, lead, ownerPos, dir) {
     if (!lead || !lead.s) return null;
-    const sig = `${lead.s}|${lead.shiny ? 1 : 0}|${lead.hat || ''}`;
+    const sig = `${lead.s}|${lead.shiny ? 1 : 0}|${lead.hat || ''}|${hasCustomModel(lead.s) ? 'glb' : ''}`;
     let e = this.followers.get(key);
     if (e && e.sig !== sig) { this.ents.remove(e.obj); this.followers.delete(key); e = null; }
     if (!e) {
@@ -377,7 +377,7 @@ export class Renderer3D {
     e.obj.position.y = tile === '~' ? -0.12 : 0;
     const speed = mv.length() / Math.max(0.001, dt);
     e.walkPh = (e.walkPh || 0) + speed * dt * 2.2;
-    animateCreature(e.obj, now / 1000, { hop: speed > 0.4 ? Math.abs(Math.sin(e.walkPh * Math.PI)) * 0.09 : 0, calm: true });
+    animateCreature(e.obj, now / 1000, { hop: speed > 0.4 ? Math.abs(Math.sin(e.walkPh * Math.PI)) * 0.09 : 0, calm: true, moving: speed > 0.4 });
   }
 
   sync(world, now, dt) {

@@ -2,8 +2,10 @@
 //
 // Každý tvor se staví z jednoduchých tvarů (koule, válce, kužele…) s kreslenými barvami a obrysem.
 // Pokud ve složce public/models existuje soubor <druh>.glb, použije se místo procedurálního modelu.
-import { THREE, toon, GEO, addOutlines, outlineMat, glowTexture, starTexture } from './core.js';
+import { THREE, toon, GEO, addOutlines, outlineMat, glowTexture, starTexture, toonGradient } from './core.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { setCustomSpriteProvider, invalidateSprites } from '../gfx/monart.js';
 import { SPECIES } from '/shared/species.js';
 import { shade, mix, hueShift, hexToRgb } from '../gfx/util.js';
 
@@ -1034,16 +1036,6 @@ export const HAT_BUILDERS = {
 
 // ---------- sestavení ----------
 const templates = new Map();
-let customModels = new Set();
-let gltfLoader = null;
-const customCache = new Map();
-
-export async function loadCustomModelList() {
-  try {
-    const r = await fetch('/api/models');
-    if (r.ok) customModels = new Set(await r.json());
-  } catch { /* bez vlastních modelů */ }
-}
 
 export function creatureScale(key) {
   const sp = SPECIES[key];
@@ -1095,53 +1087,10 @@ export function buildFromArt(spec, opts = {}, key = 'custom') {
   return root;
 }
 
-function normalizeCustom(scene, key) {
-  const box = new THREE.Box3().setFromObject(scene);
-  const size = box.getSize(new THREE.Vector3());
-  const target = 1.2 * creatureScale(key);
-  const s = target / Math.max(0.001, size.y);
-  scene.scale.multiplyScalar(s);
-  const box2 = new THREE.Box3().setFromObject(scene);
-  const center = box2.getCenter(new THREE.Vector3());
-  scene.position.x -= center.x;
-  scene.position.z -= center.z;
-  scene.position.y -= box2.min.y;
-  scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
-}
-
-async function loadCustom(key) {
-  if (customCache.has(key)) return customCache.get(key);
-  const p = (async () => {
-    if (!gltfLoader) {
-      const mod = await import('three/addons/loaders/GLTFLoader.js');
-      gltfLoader = new mod.GLTFLoader();
-    }
-    const gltf = await gltfLoader.loadAsync(`/models/${key}.glb`);
-    normalizeCustom(gltf.scene, key);
-    return gltf.scene;
-  })();
-  customCache.set(key, p);
-  return p;
-}
-
 // Vrátí nový 3D model tvora (klon šablony). opts: { shiny, hat }
 export function buildCreature(key, opts = {}) {
   if (!SPECIES[key]) key = 'hlodik';
-  if (customModels.has(key)) {
-    const holder = new THREE.Group();
-    holder.userData = { key, float: 0, height: 1.2 * creatureScale(key), radius: 0.5 * creatureScale(key), fx: [], custom: true };
-    const inner = new THREE.Group();
-    inner.name = 'inner';
-    holder.add(inner);
-    loadCustom(key).then((scene) => { inner.add(scene.clone(true)); }).catch(() => {
-      customModels.delete(key);
-      const proc = buildCreature(key, opts);
-      holder.remove(inner);
-      holder.add(proc.children[0]);
-      Object.assign(holder.userData, proc.userData, { custom: false });
-    });
-    return holder;
-  }
+  if (customModels.has(key)) return buildCustomHolder(key, opts);
   const tk = `${key}|${opts.shiny ? 1 : 0}|${opts.hat || ''}`;
   let t = templates.get(tk);
   if (!t) { t = buildProcedural(key, opts); templates.set(tk, t); }
@@ -1243,6 +1192,17 @@ export function animateCreature(obj, t, opts = {}) {
   const P = ud.parts;
   const inner = P.inner;
   if (!inner) return;
+  if (ud.mixer) {
+    // vlastní model s animacemi: klid / chůze / útok podle situace
+    const dt = ud.lastT == null ? 0 : Math.min(0.1, Math.max(0, t - ud.lastT));
+    ud.lastT = t;
+    const A = ud.actions;
+    const want = opts.moving && A.walk ? 'walk' : 'idle';
+    if (ud.cur === 'attack') { if (t >= ud.attackUntil) switchAction(ud, want); } else switchAction(ud, want);
+    ud.mixer.update(dt);
+    inner.position.y = A.walk ? 0 : opts.hop || 0;
+    return;
+  }
   const tt = t + ud.phase;
   const base = ud.baseScale;
   const breathe = 1 + Math.sin(tt * 2.4) * (opts.calm ? 0.012 : 0.025);
@@ -1259,3 +1219,333 @@ export function animateCreature(obj, t, opts = {}) {
   for (const f of P.flames) f.scale.y = f.userData.sy0 * (1 + Math.sin(tt * 11 + f.id) * 0.14);
   for (const g of P.glows) g.material.opacity = 0.35 + Math.sin(tt * 3) * 0.1;
 }
+
+// ---------- vlastní 3D modely (.glb) ----------
+// public/models/<druh>.glb nahradí procedurálního tvora; volitelný <druh>.json upraví otočení,
+// velikost, skryté části, styl a jména animací. Server je posílá přes /api/models.
+let customModels = new Map(); // druh -> nastavení
+let gltfLoader = null;
+const customCache = new Map(); // druh -> Promise<šablona>
+const customReady = new Map(); // druh -> šablona (už načtená)
+
+export async function loadCustomModelList() {
+  try {
+    const r = await fetch('/api/models');
+    if (!r.ok) return customModels;
+    const data = await r.json();
+    customModels = new Map(Array.isArray(data) ? data.map((k) => [k, {}]) : Object.entries(data));
+  } catch { /* bez vlastních modelů */ }
+  return customModels;
+}
+
+export function hasCustomModel(key) { return customModels.has(key); }
+
+// Načte předem všechny vlastní modely (kvůli ikonám v menu a Atlasu).
+export async function preloadCustomModels() {
+  await loadCustomModelList();
+  await Promise.all([...customModels.keys()].map((k) => loadCustom(k).catch(() => null)));
+}
+
+async function getLoader() {
+  if (gltfLoader) return gltfLoader;
+  const [{ GLTFLoader }, { DRACOLoader }, { MeshoptDecoder }] = await Promise.all([
+    import('three/addons/loaders/GLTFLoader.js'),
+    import('three/addons/loaders/DRACOLoader.js'),
+    import('three/addons/libs/meshopt_decoder.module.js'),
+  ]);
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('/vendor/three-addons/libs/draco/gltf/');
+  gltfLoader = new GLTFLoader();
+  gltfLoader.setDRACOLoader(draco);
+  gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+  return gltfLoader;
+}
+
+// Rozbalí .glb z bajtů (Dílna tvorů – soubor přetažený z disku).
+export async function parseGLB(buffer) {
+  const loader = await getLoader();
+  return new Promise((resolve, reject) => loader.parse(buffer, '', resolve, reject));
+}
+
+const ACTION_RE = {
+  idle: /idle|stand|wait|breath|rest|pose/i,
+  walk: /walk|run|move|jog|trot|hop/i,
+  attack: /attack|atk|hit|strike|bite|punch|kick|slash|roar/i,
+};
+
+function pickClip(anims, name, re, fallbackFirst) {
+  if (!anims || !anims.length) return null;
+  if (name) {
+    const byName = anims.find((a) => a.name === name);
+    if (byName) return byName;
+  }
+  return anims.find((a) => re.test(a.name)) || (fallbackFirst ? anims[0] : null);
+}
+
+function hiddenUp(o) {
+  for (let p = o; p; p = p.parent) if (!p.visible) return true;
+  return false;
+}
+
+// Hranice viditelných částí (i s kostrou v aktuální póze).
+function visibleBounds(root) {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const tmp = new THREE.Box3();
+  root.traverse((o) => {
+    if (!o.isMesh || o.userData.isOutline || hiddenUp(o)) return;
+    if (o.isSkinnedMesh) { o.computeBoundingBox(); tmp.copy(o.boundingBox); } else {
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      tmp.copy(o.geometry.boundingBox);
+    }
+    tmp.applyMatrix4(o.matrixWorld);
+    box.union(tmp);
+  });
+  if (box.isEmpty()) box.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 1, 0.5));
+  return box;
+}
+
+// Seznam částí modelu (pro Dílnu tvorů): jméno sítě a jejího rodiče.
+export function modelParts(gltf) {
+  const out = [];
+  (gltf.scene || gltf.scenes[0]).traverse((o) => { if (o.isMesh) out.push({ name: o.name, parent: o.parent ? o.parent.name : '' }); });
+  return out;
+}
+
+// Připraví načtený glTF jako šablonu tvora: skryje části, sjednotí styl, přidá obrysy,
+// otočí model čelem dopředu (+Z), zmenší/zvětší na výšku tvora a postaví na zem.
+export function prepareCustomModel(gltf, key, cfg = {}) {
+  const scene = gltf.scene || gltf.scenes[0];
+  const hide = new Set(cfg.hide || []);
+  scene.traverse((o) => { if (o.name && hide.has(o.name)) o.visible = false; });
+  // styl: 'auto' převede osvětlené (PBR) materiály na kreslené, neosvětlené nechá být
+  const mode = cfg.toon ?? 'auto';
+  const conv = new Map();
+  const toToon = (m) => {
+    if (!m) return m;
+    if (conv.has(m)) return conv.get(m);
+    let out = m;
+    const convert = mode === true || (mode === 'auto' && !m.isMeshBasicMaterial && !m.isMeshToonMaterial);
+    if (convert) {
+      out = new THREE.MeshToonMaterial({
+        color: m.color ? m.color.clone() : new THREE.Color('#ffffff'), map: m.map || null, gradientMap: toonGradient(),
+        transparent: !!m.transparent, opacity: m.opacity ?? 1, alphaTest: m.alphaTest || 0, side: m.side, vertexColors: !!m.vertexColors, alphaMap: m.alphaMap || null,
+      });
+      if (m.emissive) { out.emissive.copy(m.emissive); out.emissiveMap = m.emissiveMap || null; out.emissiveIntensity = m.emissiveIntensity ?? 1; }
+      out.name = m.name;
+    }
+    conv.set(m, out);
+    return out;
+  };
+  const meshes = [];
+  scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    o.material = Array.isArray(o.material) ? o.material.map(toToon) : toToon(o.material);
+    o.castShadow = true;
+    if (o.isSkinnedMesh) o.frustumCulled = false;
+  }
+  // obrysy (u průhledných částí ne)
+  if (cfg.outline !== false) {
+    const ol = outlineMat('#1c1424', 0.018);
+    for (const o of meshes) {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some((m) => !m || (m.transparent && (m.opacity ?? 1) < 0.99) || m.alphaTest > 0)) continue;
+      let line;
+      if (o.isSkinnedMesh) {
+        line = new THREE.SkinnedMesh(o.geometry, ol);
+        line.bind(o.skeleton, o.bindMatrix);
+        line.bindMode = o.bindMode;
+        line.position.copy(o.position);
+        line.quaternion.copy(o.quaternion);
+        line.scale.copy(o.scale);
+        line.frustumCulled = false;
+        o.parent.add(line);
+      } else {
+        line = new THREE.Mesh(o.geometry, ol);
+        o.add(line);
+      }
+      line.userData.isOutline = true;
+      line.castShadow = false;
+      line.visible = o.visible;
+      line.raycast = () => {};
+    }
+  }
+  // velikost, otočení a postavení na zem
+  const target = 1.2 * creatureScale(key) * (cfg.scale || 1);
+  const rig = new THREE.Group();
+  rig.name = 'customRig';
+  rig.add(scene);
+  rig.rotation.y = THREE.MathUtils.degToRad(cfg.rotateY || 0);
+  let box = visibleBounds(rig);
+  const size = box.getSize(new THREE.Vector3());
+  rig.scale.setScalar(target / Math.max(0.001, size.y));
+  box = visibleBounds(rig);
+  const c = box.getCenter(new THREE.Vector3());
+  rig.position.set(-c.x, -box.min.y + (cfg.lift || 0), -c.z);
+  box = visibleBounds(rig);
+  const anims = gltf.animations || [];
+  return {
+    key, rig, cfg, animations: anims,
+    clips: { idle: pickClip(anims, cfg.idle, ACTION_RE.idle, true), walk: pickClip(anims, cfg.walk, ACTION_RE.walk, false), attack: pickClip(anims, cfg.attack, ACTION_RE.attack, false) },
+    height: box.max.y, radius: Math.max(box.max.x, -box.min.x, box.max.z, -box.min.z),
+    top: new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2),
+  };
+}
+
+function switchAction(ud, name) {
+  const A = ud.actions;
+  const next = A[name];
+  if (!next || ud.cur === name) return;
+  const prev = A[ud.cur];
+  next.reset();
+  next.setEffectiveWeight(1);
+  next.fadeIn(prev ? 0.2 : 0);
+  next.play();
+  if (prev) prev.fadeOut(0.2);
+  ud.cur = name;
+}
+
+// Spustí jednorázovou animaci (např. útok v souboji), pokud ji model má.
+export function playCreatureAction(obj, name) {
+  const ud = obj && obj.userData;
+  if (!ud || !ud.mixer || !ud.actions[name]) return false;
+  switchAction(ud, name);
+  ud.attackUntil = (ud.lastT || 0) + ud.actions[name].getClip().duration;
+  return true;
+}
+
+function addHat(holder, tpl, hat) {
+  if (!hat || !HAT_BUILDERS[hat]) return;
+  const k = new Kit({ line: '#1c1424' });
+  const g = new THREE.Group();
+  g.name = 'customHat';
+  const pos = Array.isArray(tpl.cfg.hat) ? new THREE.Vector3(...tpl.cfg.hat) : tpl.top.clone().add(new THREE.Vector3(0, -0.04, 0));
+  g.position.copy(pos);
+  g.scale.setScalar(Math.max(0.6, Math.min(1.6, tpl.height / 0.95)));
+  HAT_BUILDERS[hat](k, g, new THREE.Vector3(0, 0, 0));
+  while (k.root.children.length) g.add(k.root.children[0]);
+  addOutlines(g, 0.018, '#1c1424');
+  holder.add(g);
+}
+
+// Vyrobí z šablony samostatnou instanci (s vlastní kostrou a animacemi).
+export function instantiateCustom(tpl, opts = {}) {
+  const holder = new THREE.Group();
+  const inner = new THREE.Group();
+  inner.name = 'inner';
+  holder.add(inner);
+  const obj = cloneSkinned(tpl.rig);
+  inner.add(obj);
+  addHat(inner, tpl, opts.hat);
+  holder.userData = { key: tpl.key, float: 0, height: tpl.height, radius: tpl.radius, fx: [], custom: true };
+  if (tpl.animations.length) {
+    const mixer = new THREE.AnimationMixer(obj);
+    const actions = {};
+    for (const n of ['idle', 'walk', 'attack']) {
+      if (!tpl.clips[n]) continue;
+      actions[n] = mixer.clipAction(tpl.clips[n]);
+      if (n === 'attack') { actions[n].setLoop(THREE.LoopOnce, 1); actions[n].clampWhenFinished = true; }
+    }
+    Object.assign(holder.userData, { mixer, actions, cur: null });
+    switchAction(holder.userData, 'idle');
+  }
+  return holder;
+}
+
+async function loadCustom(key) {
+  if (customCache.has(key)) return customCache.get(key);
+  const p = (async () => {
+    const loader = await getLoader();
+    const gltf = await loader.loadAsync(`/models/${key}.glb`);
+    const tpl = prepareCustomModel(gltf, key, customModels.get(key) || {});
+    customReady.set(key, tpl);
+    invalidateSprites(key);
+    return tpl;
+  })();
+  customCache.set(key, p);
+  return p;
+}
+
+// Tvor s vlastním modelem: hned vrátí prázdný „držák“, model se do něj doplní po načtení.
+function buildCustomHolder(key, opts) {
+  const ready = customReady.get(key);
+  if (ready) return instantiateCustom(ready, opts);
+  const holder = new THREE.Group();
+  const inner = new THREE.Group();
+  inner.name = 'inner';
+  holder.add(inner);
+  const sc = creatureScale(key);
+  const cfg = customModels.get(key) || {};
+  holder.userData = { key, float: 0, height: 1.2 * sc * (cfg.scale || 1), radius: 0.5 * sc, fx: [], custom: true };
+  holder.userData.ready = loadCustom(key).then((tpl) => {
+    const inst = instantiateCustom(tpl, opts);
+    const instInner = inst.getObjectByName('inner');
+    // přesuneme hotový model do držáku (mixer dál ovládá tytéž objekty)
+    while (instInner.children.length) inner.add(instInner.children[0]);
+    Object.assign(holder.userData, inst.userData);
+    return holder;
+  }).catch((e) => {
+    console.warn(`Vlastní model ${key}.glb se nepodařilo načíst, používám procedurálního tvora.`, e);
+    customModels.delete(key);
+    const proc = buildCreature(key, opts);
+    const procInner = proc.getObjectByName('inner');
+    holder.remove(inner);
+    holder.add(procInner);
+    const ud = holder.userData;
+    Object.assign(ud, proc.userData, { custom: false, parts: null });
+    return holder;
+  });
+  return holder;
+}
+
+// ---------- 2D obrázky z vlastních modelů (ikony v menu, Atlas, 2D souboj) ----------
+let snap = null;
+function snapRenderer() {
+  if (snap !== null) return snap;
+  try {
+    const canvas = document.createElement('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(1);
+    renderer.setSize(256, 256, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.set(1.5, 4, 3);
+    scene.add(sun);
+    snap = { renderer, scene, camera: new THREE.PerspectiveCamera(28, 1, 0.05, 100) };
+  } catch { snap = false; }
+  return snap;
+}
+
+// Vykreslí šablonu do plátna size×size (zepředu, nebo zezadu pro vlastního tvora v 2D souboji).
+export function renderCustomSprite(tpl, size, opts = {}) {
+  const S = snapRenderer();
+  if (!S) return null;
+  const inst = instantiateCustom(tpl, { hat: opts.hat });
+  if (inst.userData.mixer) inst.userData.mixer.update(0);
+  inst.rotation.y = opts.back ? Math.PI + 0.5 : -0.35;
+  S.scene.add(inst);
+  const h = Math.max(0.3, tpl.height);
+  const r = Math.max(h * 0.5, tpl.radius);
+  const dist = (Math.max(h, r * 1.6) * 1.45) / (2 * Math.tan((S.camera.fov * Math.PI) / 360)) + r;
+  S.camera.position.set(0, h * 0.6, dist);
+  S.camera.lookAt(0, h * 0.5, 0);
+  S.renderer.render(S.scene, S.camera);
+  S.scene.remove(inst);
+  const out = document.createElement('canvas');
+  out.width = size;
+  out.height = size;
+  const g = out.getContext('2d');
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  g.beginPath();
+  g.ellipse(size / 2, size * 0.93, size * 0.24, size * 0.045, 0, 0, Math.PI * 2);
+  g.fill();
+  g.drawImage(S.renderer.domElement, 0, 0, size, size);
+  return out;
+}
+
+setCustomSpriteProvider((key, size, opts) => {
+  const tpl = customReady.get(key);
+  return tpl ? renderCustomSprite(tpl, size, opts) : null;
+});

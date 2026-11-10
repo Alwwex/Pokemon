@@ -1,6 +1,6 @@
 // Dílna tvorů: živý náhled 3D a 2D tvora, úprava popisu `art` a export kódu pro shared/species.js.
 import { THREE } from './gfx3d/core.js';
-import { buildFromArt, animateCreature, HAT_BUILDERS } from './gfx3d/mon3d.js';
+import { buildFromArt, animateCreature, HAT_BUILDERS, parseGLB, prepareCustomModel, instantiateCustom, renderCustomSprite, modelParts, playCreatureAction } from './gfx3d/mon3d.js';
 import { drawArt } from './gfx/monart.js';
 import { SPECIES, SPECIES_LIST } from '/shared/species.js';
 import { ITEMS } from '/shared/items.js';
@@ -62,6 +62,12 @@ scene.add(ground);
 const holder = new THREE.Group();
 scene.add(holder);
 let mon = null;
+// šipka na zemi: tudy je „předek“ tvora (+Z) – vlastní model otoč tak, aby koukal sem
+const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 3), new THREE.MeshBasicMaterial({ color: '#e8443a' }));
+arrow.rotation.set(Math.PI / 2, 0, 0);
+arrow.position.set(0, 0.02, 1.38);
+arrow.scale.set(1, 1, 0.15);
+holder.add(arrow);
 
 function resize() {
   const w = view.clientWidth;
@@ -73,6 +79,7 @@ function resize() {
 window.addEventListener('resize', resize);
 
 function rebuild() {
+  if (glb) { buildGlbPreview(); updateCode(); return; }
   if (mon) holder.remove(mon);
   mon = buildFromArt(art, { shiny: $('shiny').checked, hat: $('hat').value || null }, key);
   mon.traverse((o) => { if (o.isMesh && !o.userData.isOutline) o.castShadow = true; });
@@ -94,10 +101,10 @@ function draw2D() {
   }
 }
 
-const clock = new THREE.Clock();
+const t0 = performance.now();
 function loop() {
-  const t = clock.getElapsedTime();
-  if (mon) animateCreature(mon, t);
+  const t = (performance.now() - t0) / 1000;
+  if (mon) animateCreature(mon, t, { moving: walkPreview });
   if ($('spin').checked) holder.rotation.y += 0.006;
   controls.update();
   renderer.render(scene, camera);
@@ -233,6 +240,154 @@ function randomArt() {
   if (xs.length) a.x = xs;
   for (const k of Object.keys(a)) if (a[k] === undefined) delete a[k];
   return a;
+}
+
+// ---------- vlastní 3D model (.glb) ----------
+let glb = null; // ArrayBuffer přetaženého souboru
+let glbName = '';
+let glbParts = [];
+let glbAnims = [];
+let walkPreview = false;
+let glbBusy = false;
+let glbAgain = false;
+const gcfg = { rotateY: 0, scale: 1, lift: 0, toon: 'auto', outline: true, hide: [], idle: '', walk: '', attack: '' };
+
+function cfgJson() {
+  const out = {};
+  if (gcfg.rotateY) out.rotateY = gcfg.rotateY;
+  if (gcfg.scale !== 1) out.scale = gcfg.scale;
+  if (gcfg.lift) out.lift = gcfg.lift;
+  if (gcfg.toon !== 'auto') out.toon = gcfg.toon;
+  if (!gcfg.outline) out.outline = false;
+  if (gcfg.hide.length) out.hide = [...gcfg.hide];
+  for (const k of ['idle', 'walk', 'attack']) if (gcfg[k]) out[k] = gcfg[k];
+  return out;
+}
+
+async function buildGlbPreview() {
+  if (glbBusy) { glbAgain = true; return; }
+  glbBusy = true;
+  try {
+    const gltf = await parseGLB(glb.slice(0));
+    const cfg = cfgJson();
+    const tpl = prepareCustomModel(gltf, key, cfg);
+    if (mon) holder.remove(mon);
+    mon = instantiateCustom(tpl, { hat: $('hat').value || null });
+    holder.add(mon);
+    controls.target.set(0, Math.max(0.3, tpl.height * 0.5), 0);
+    for (const [id, back] of [['front', false], ['back', true]]) {
+      const c = $(id);
+      const g = c.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, c.width, c.height);
+      const img = renderCustomSprite(tpl, c.width, { back, hat: $('hat').value || null });
+      if (img) g.drawImage(img, 0, 0);
+    }
+    const n = glbAnims.length;
+    $('glbinfo').innerHTML = `Soubor <b>${escapeHtml(glbName)}</b> · ${glbParts.length} částí · ${n ? `${n} animací` : 'bez animací (tvor bude jen dýchat)'} · ve hře nahradí tvora <b>${escapeHtml(SPECIES[key].n)}</b>.`;
+    $('g_cfg').value = `// public/models/${key}.json\n${JSON.stringify(cfg, null, 2)}`;
+    for (const el of document.querySelectorAll('.gkey')) el.textContent = key;
+  } catch (e) {
+    $('glbinfo').textContent = 'Soubor se nepodařilo načíst: ' + e.message;
+  } finally {
+    glbBusy = false;
+    if (glbAgain) { glbAgain = false; buildGlbPreview(); }
+  }
+}
+
+function escapeHtml(t) { return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+async function openGlb(file) {
+  if (!file) return;
+  if (!/\.glb$/i.test(file.name)) { $('glbinfo').textContent = 'Potřebuji soubor .glb (glTF Binary).'; $('glbpanel').hidden = false; return; }
+  glb = await file.arrayBuffer();
+  glbName = file.name;
+  Object.assign(gcfg, { rotateY: 0, scale: 1, lift: 0, toon: 'auto', outline: true, hide: [], idle: '', walk: '', attack: '' });
+  try {
+    const gltf = await parseGLB(glb.slice(0));
+    glbParts = modelParts(gltf);
+    glbAnims = (gltf.animations || []).map((a) => a.name || '(bez jména)');
+  } catch (e) { glbParts = []; glbAnims = []; }
+  fillGlbForm();
+  $('glbpanel').hidden = false;
+  rebuild();
+}
+
+function fillGlbForm() {
+  $('g_rot').value = String(gcfg.rotateY);
+  $('g_rot_v').textContent = `${gcfg.rotateY}°`;
+  $('g_scale').value = String(gcfg.scale);
+  $('g_scale_v').textContent = `${gcfg.scale}×`;
+  $('g_lift').value = String(gcfg.lift);
+  $('g_toon').value = String(gcfg.toon);
+  $('g_outline').checked = gcfg.outline;
+  const parts = $('g_parts');
+  parts.innerHTML = '';
+  for (const p of glbParts) {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !gcfg.hide.includes(p.name);
+    cb.addEventListener('change', () => {
+      gcfg.hide = gcfg.hide.filter((x) => x !== p.name);
+      if (!cb.checked) gcfg.hide.push(p.name);
+      rebuild();
+    });
+    lab.append(cb, ' ', p.name || '(bez jména)', p.parent ? ` · ${p.parent}` : '');
+    parts.append(lab);
+  }
+  const an = $('g_anims');
+  an.innerHTML = '';
+  if (glbAnims.length) {
+    const row = document.createElement('div');
+    row.className = 'grid';
+    for (const [k, label] of [['idle', 'Animace v klidu'], ['walk', 'Animace chůze'], ['attack', 'Animace útoku']]) {
+      const lab = document.createElement('label');
+      lab.textContent = label;
+      const s = document.createElement('select');
+      s.append(new Option('automaticky (podle jména)', ''));
+      for (const a of glbAnims) s.append(new Option(a, a));
+      s.value = gcfg[k];
+      s.addEventListener('change', () => { gcfg[k] = s.value; rebuild(); });
+      lab.append(s);
+      row.append(lab);
+    }
+    an.append(row);
+    const btns = document.createElement('div');
+    btns.className = 'row';
+    const atk = document.createElement('button');
+    atk.textContent = '▶ Zkusit útok';
+    atk.addEventListener('click', () => { if (mon) playCreatureAction(mon, 'attack'); });
+    const walk = document.createElement('button');
+    walk.textContent = '🚶 Chůze zap/vyp';
+    walk.addEventListener('click', () => { walkPreview = !walkPreview; });
+    btns.append(atk, walk);
+    an.append(btns);
+  }
+}
+
+let glbTimer = 0;
+const later = () => { clearTimeout(glbTimer); glbTimer = setTimeout(rebuild, 120); };
+$('g_rot').addEventListener('input', () => { gcfg.rotateY = Number($('g_rot').value); $('g_rot_v').textContent = `${gcfg.rotateY}°`; later(); });
+$('g_scale').addEventListener('input', () => { gcfg.scale = Number($('g_scale').value); $('g_scale_v').textContent = `${gcfg.scale}×`; later(); });
+$('g_lift').addEventListener('input', () => { gcfg.lift = Number($('g_lift').value); later(); });
+$('g_toon').addEventListener('change', () => { const v = $('g_toon').value; gcfg.toon = v === 'auto' ? 'auto' : v === 'true'; rebuild(); });
+$('g_outline').addEventListener('change', () => { gcfg.outline = $('g_outline').checked; rebuild(); });
+$('g_copy').addEventListener('click', async () => {
+  const text = JSON.stringify(cfgJson(), null, 2);
+  try { await navigator.clipboard.writeText(text); $('g_copied').textContent = 'Zkopírováno ✓'; } catch { $('g_cfg').select(); $('g_copied').textContent = 'Označeno – Ctrl+C'; }
+  setTimeout(() => { $('g_copied').textContent = ''; }, 2500);
+});
+$('g_remove').addEventListener('click', () => { glb = null; walkPreview = false; $('glbpanel').hidden = true; $('glbfile').value = ''; rebuild(); });
+$('glbfile').addEventListener('change', (e) => openGlb(e.target.files[0]));
+for (const el of [$('drop'), view]) {
+  el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add(el === view ? 'dragover' : 'over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover', 'over'));
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('dragover', 'over');
+    openGlb(e.dataTransfer.files[0]);
+  });
 }
 
 // ---------- start ----------

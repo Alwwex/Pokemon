@@ -72,6 +72,8 @@ async function setGfx(mode) {
   world.setRenderer(r);
 }
 app.gfxReady = setGfx(gfxMode);
+// vlastní 3D modely tvorů (public/models/*.glb) – načíst předem kvůli ikonám v menu a Atlasu
+import('./gfx3d/mon3d.js').then((m) => m.preloadCustomModels()).catch(() => { /* bez 3D */ });
 app.renderer3d = () => (world.renderer && world.renderer.renderer ? world.renderer : null);
 const uiCtx = { me: () => app.me, send: app.send, onShopResult: null, onPC: null };
 app.uiCtx = uiCtx;

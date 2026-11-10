@@ -3,7 +3,7 @@
 // BattleScene (battle.js) – tahle třída jen převádí její stav na 3D scénu.
 import { THREE, GEO, toon, glowTexture, toonGradient, outlineMat } from './gfx3d/core.js';
 import { Batch } from './gfx3d/batch.js';
-import { buildCreature, animateCreature } from './gfx3d/mon3d.js';
+import { buildCreature, animateCreature, playCreatureAction } from './gfx3d/mon3d.js';
 import { shade } from './gfx/util.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -251,33 +251,55 @@ export class BattleView3D {
     this.monKey[rel] = key;
     if (!mon) return;
     const obj = buildCreature(mon.s, { shiny: mon.shiny, hat: mon.hat });
-    // vlastní kopie materiálů (bílý záblesk, průhlednost) jen pro tuto instanci
-    const mats = [];
-    const cache = new Map();
-    obj.traverse((o) => {
-      if (!o.isMesh) return;
-      if (!cache.has(o.material)) {
-        const c = o.material.clone();
-        cache.set(o.material, c);
-        if (!o.userData.isOutline && c.emissive) mats.push({ m: c, e: c.emissive.clone(), ei: c.emissiveIntensity });
-        else mats.push({ m: c, outline: !!o.userData.isOutline });
-      }
-      o.material = cache.get(o.material);
-      o.castShadow = !o.userData.isOutline;
-    });
-    const h = obj.userData.height || 1;
-    const base = rel === 0 ? 1.2 : 1.3;
-    const scale = base * Math.min(1.35, Math.max(0.75, 1.15 / Math.max(0.55, h)) ** 0.5);
     const g = new THREE.Group();
     g.add(obj);
-    obj.scale.setScalar(scale);
     obj.rotation.y = rel === 0 ? Math.atan2(POS[1].x - POS[0].x, POS[1].z - POS[0].z) : Math.atan2(POS[0].x - POS[1].x + 3.5, POS[0].z - POS[1].z + 3);
     g.position.copy(POS[rel]);
     this.scene.add(g);
-    this.mons[rel] = { obj: g, mon: obj, mats, scale, height: h * scale };
+    const entry = { obj: g, mon: obj, mats: [], scale: 1, height: 1 };
+    this.mons[rel] = entry;
+    this.fitMon(entry, rel);
+    // vlastní model (.glb) se načítá na pozadí – po načtení znovu změřit a posbírat materiály
+    if (obj.userData.ready) obj.userData.ready.then(() => { if (this.mons[rel] === entry) this.fitMon(entry, rel); });
   }
 
-  focus(rel) { this.focusRel = rel; }
+  // velikost tvora v aréně + vlastní kopie materiálů (bílý záblesk, průhlednost) jen pro tuto instanci
+  fitMon(entry, rel) {
+    const obj = entry.mon;
+    if (!entry.copies) entry.copies = new Map(); // původní materiál -> kopie
+    if (!entry.recs) entry.recs = new Map(); // kopie -> záznam pro záblesk a průhlednost
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const list = Array.isArray(o.material) ? o.material : [o.material];
+      const out = list.map((m) => {
+        if (!m || entry.recs.has(m)) return m;
+        if (!entry.copies.has(m)) {
+          const c = m.clone();
+          // clone() nepřenáší úpravy shaderu (obrysy) – předáme je ručně
+          c.onBeforeCompile = m.onBeforeCompile;
+          c.customProgramCacheKey = m.customProgramCacheKey;
+          entry.copies.set(m, c);
+          const rec = { m: c, t0: c.transparent, o0: c.opacity ?? 1 };
+          if (!o.userData.isOutline && c.emissive) Object.assign(rec, { e: c.emissive.clone(), ei: c.emissiveIntensity });
+          entry.recs.set(c, rec);
+        }
+        return entry.copies.get(m);
+      });
+      o.material = Array.isArray(o.material) ? out : out[0];
+      o.castShadow = !o.userData.isOutline;
+    });
+    entry.mats = [...entry.recs.values()];
+    const h = obj.userData.height || 1;
+    const base = rel === 0 ? 1.2 : 1.3;
+    entry.scale = base * Math.min(1.35, Math.max(0.75, 1.15 / Math.max(0.55, h)) ** 0.5);
+    entry.height = h * entry.scale;
+    obj.scale.setScalar(entry.scale);
+  }
+
+  focus(rel) {
+    this.focusRel = rel;
+    if (rel != null && this.mons[rel]) playCreatureAction(this.mons[rel].mon, 'attack');
+  }
 
   // poloha bodu tvora na obrazovce (pro 2D efekty)
   screenOf(rel, frac = 0.45) {
@@ -353,9 +375,9 @@ export class BattleView3D {
           x.m.emissive.copy(x.e).lerp(new THREE.Color('#ffffff'), white);
           x.m.emissiveIntensity = x.ei + white * 1.4;
         }
-        const tr = fade < 0.999;
+        const tr = x.t0 || fade < 0.999;
         if (x.m.transparent !== tr) { x.m.transparent = tr; x.m.needsUpdate = true; }
-        x.m.opacity = fade;
+        x.m.opacity = x.o0 * fade;
       }
       const slp = bs.mons[rel] && bs.mons[rel].status === 'slp';
       animateCreature(m.mon, slp ? t * 0.4 : t, { calm: slp });
