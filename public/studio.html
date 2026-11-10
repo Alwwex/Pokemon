@@ -91,6 +91,7 @@
       <div class="drop" id="drop">Přetáhni sem soubor <b>.glb</b> (nebo ho <label class="filebtn">vyber<input type="file" id="glbfile" accept=".glb" hidden></label>) – hned uvidíš, jak bude tvor vypadat ve hře. Soubor se nikam neposílá.</div>
       <div id="glbpanel" hidden>
         <p class="glbinfo" id="glbinfo"></p>
+        <p class="hint">Nejdřív tvora <b>otoč čelem k červené šipce</b> na zemi – tam je ve hře „dopředu“ (podle toho se otočí i kšilt čepice).</p>
         <div class="grid">
           <label>Otočení <span><input type="range" id="g_rot" min="-180" max="180" step="5" value="0"> <span id="g_rot_v">0°</span></span></label>
           <label>Velikost <span><input type="range" id="g_scale" min="0.4" max="2.5" step="0.05" value="1"> <span id="g_scale_v">1×</span></span></label>
@@ -99,6 +100,16 @@
           <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="g_outline" checked> černé obrysy</label>
         </div>
         <div id="g_anims"></div>
+        <h2 style="margin-top:10px">Čepice na modelu</h2>
+        <p class="hint" id="g_headinfo">Vyber nahoře nějakou čepici a uvidíš, kam si ji tvor nasadí.</p>
+        <div class="grid">
+          <label>Hlava (kost/uzel) <select id="g_head"></select></label>
+          <label>Velikost čepice <span><input type="range" id="g_hsize" min="0.3" max="3" step="0.05" value="1"> <span id="g_hsize_v">1×</span></span></label>
+          <label>Nahoru / dolů <input type="range" id="g_hy" min="-0.6" max="0.6" step="0.01" value="0"></label>
+          <label>Dopředu / dozadu <input type="range" id="g_hz" min="-0.6" max="0.6" step="0.01" value="0"></label>
+          <label>Doleva / doprava <input type="range" id="g_hx" min="-0.6" max="0.6" step="0.01" value="0"></label>
+          <label style="justify-content:flex-end"><button id="g_hreset" type="button">↺ Čepici zpět</button></label>
+        </div>
         <h2 style="margin-top:10px">Části modelu</h2>
         <p class="hint">Odškrtni, co ke tvorovi nepatří (podstavec, pozadí, krabice…).</p>
         <div class="x-list" id="g_parts"></div>

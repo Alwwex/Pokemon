@@ -1,6 +1,6 @@
 // Dílna tvorů: živý náhled 3D a 2D tvora, úprava popisu `art` a export kódu pro shared/species.js.
 import { THREE } from './gfx3d/core.js';
-import { buildFromArt, animateCreature, HAT_BUILDERS, parseGLB, prepareCustomModel, instantiateCustom, renderCustomSprite, modelParts, playCreatureAction } from './gfx3d/mon3d.js';
+import { buildFromArt, animateCreature, HAT_BUILDERS, parseGLB, prepareCustomModel, instantiateCustom, renderCustomSprite, modelParts, modelNodes, playCreatureAction } from './gfx3d/mon3d.js';
 import { drawArt } from './gfx/monart.js';
 import { SPECIES, SPECIES_LIST } from '/shared/species.js';
 import { ITEMS } from '/shared/items.js';
@@ -250,7 +250,9 @@ let glbAnims = [];
 let walkPreview = false;
 let glbBusy = false;
 let glbAgain = false;
-const gcfg = { rotateY: 0, scale: 1, lift: 0, toon: 'auto', outline: true, hide: [], idle: '', walk: '', attack: '' };
+let glbNodes = { bones: [], nodes: [] };
+const GDEF = { rotateY: 0, scale: 1, lift: 0, toon: 'auto', outline: true, hide: [], idle: '', walk: '', attack: '', head: '', hatScale: 1, hatOffset: [0, 0, 0] };
+const gcfg = JSON.parse(JSON.stringify(GDEF));
 
 function cfgJson() {
   const out = {};
@@ -260,7 +262,9 @@ function cfgJson() {
   if (gcfg.toon !== 'auto') out.toon = gcfg.toon;
   if (!gcfg.outline) out.outline = false;
   if (gcfg.hide.length) out.hide = [...gcfg.hide];
-  for (const k of ['idle', 'walk', 'attack']) if (gcfg[k]) out[k] = gcfg[k];
+  for (const k of ['idle', 'walk', 'attack', 'head']) if (gcfg[k]) out[k] = gcfg[k];
+  if (gcfg.hatScale !== 1) out.hatScale = gcfg.hatScale;
+  if (gcfg.hatOffset.some((v) => v)) out.hatOffset = gcfg.hatOffset.map((v) => Math.round(v * 100) / 100);
   return out;
 }
 
@@ -283,6 +287,8 @@ async function buildGlbPreview() {
       const img = renderCustomSprite(tpl, c.width, { back, hat: $('hat').value || null });
       if (img) g.drawImage(img, 0, 0);
     }
+    const src = { kost: `kost <b>${escapeHtml(tpl.hat.bone)}</b> – čepice se hýbe s hlavou`, uzel: `část <b>${escapeHtml(tpl.hat.bone)}</b>`, odhad: 'odhad podle tvaru (vršek uprostřed vpředu)' }[tpl.hat.source];
+    $('g_headinfo').innerHTML = `Hlavu pro čepici jsem našel: ${src}. ${$('hat').value ? 'Když nesedí, dolaď ji posuvníky.' : 'Vyber nahoře čepici a uvidíš, kam si ji tvor nasadí.'}`;
     const n = glbAnims.length;
     $('glbinfo').innerHTML = `Soubor <b>${escapeHtml(glbName)}</b> · ${glbParts.length} částí · ${n ? `${n} animací` : 'bez animací (tvor bude jen dýchat)'} · ve hře nahradí tvora <b>${escapeHtml(SPECIES[key].n)}</b>.`;
     $('g_cfg').value = `// public/models/${key}.json\n${JSON.stringify(cfg, null, 2)}`;
@@ -299,15 +305,24 @@ function escapeHtml(t) { return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&am
 
 async function openGlb(file) {
   if (!file) return;
-  if (!/\.glb$/i.test(file.name)) { $('glbinfo').textContent = 'Potřebuji soubor .glb (glTF Binary).'; $('glbpanel').hidden = false; return; }
+  if (!/\.glb$/i.test(file.name)) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    $('glbinfo').innerHTML = `Soubor <b>.${escapeHtml(ext)}</b> neumím. Hra potřebuje <b>.glb</b> (glTF Binary – jeden soubor i s texturami). ` +
+      'Převedeš ho zdarma v Blenderu: File → Import (tvůj formát) a pak File → Export → glTF 2.0, Format: <b>glTF Binary (.glb)</b>. ' +
+      'Na Sketchfabu stáhni rovnou variantu „GLB“.';
+    $('glbpanel').hidden = false;
+    for (const id of ['g_parts', 'g_anims']) $(id).innerHTML = '';
+    return;
+  }
   glb = await file.arrayBuffer();
   glbName = file.name;
-  Object.assign(gcfg, { rotateY: 0, scale: 1, lift: 0, toon: 'auto', outline: true, hide: [], idle: '', walk: '', attack: '' });
+  Object.assign(gcfg, JSON.parse(JSON.stringify(GDEF)));
   try {
     const gltf = await parseGLB(glb.slice(0));
     glbParts = modelParts(gltf);
+    glbNodes = modelNodes(gltf);
     glbAnims = (gltf.animations || []).map((a) => a.name || '(bez jména)');
-  } catch (e) { glbParts = []; glbAnims = []; }
+  } catch (e) { glbParts = []; glbAnims = []; glbNodes = { bones: [], nodes: [] }; }
   fillGlbForm();
   $('glbpanel').hidden = false;
   rebuild();
@@ -321,6 +336,25 @@ function fillGlbForm() {
   $('g_lift').value = String(gcfg.lift);
   $('g_toon').value = String(gcfg.toon);
   $('g_outline').checked = gcfg.outline;
+  const hs = $('g_head');
+  hs.innerHTML = '';
+  hs.append(new Option('automaticky', ''));
+  if (glbNodes.bones.length) {
+    const og = document.createElement('optgroup');
+    og.label = 'kosti';
+    for (const n of glbNodes.bones) og.append(new Option(n, n));
+    hs.append(og);
+  }
+  if (glbNodes.nodes.length) {
+    const og = document.createElement('optgroup');
+    og.label = 'části';
+    for (const n of glbNodes.nodes) og.append(new Option(n, n));
+    hs.append(og);
+  }
+  hs.value = gcfg.head;
+  $('g_hsize').value = String(gcfg.hatScale);
+  $('g_hsize_v').textContent = `${gcfg.hatScale}×`;
+  [$('g_hx').value, $('g_hy').value, $('g_hz').value] = gcfg.hatOffset.map(String);
   const parts = $('g_parts');
   parts.innerHTML = '';
   for (const p of glbParts) {
@@ -373,6 +407,10 @@ $('g_scale').addEventListener('input', () => { gcfg.scale = Number($('g_scale').
 $('g_lift').addEventListener('input', () => { gcfg.lift = Number($('g_lift').value); later(); });
 $('g_toon').addEventListener('change', () => { const v = $('g_toon').value; gcfg.toon = v === 'auto' ? 'auto' : v === 'true'; rebuild(); });
 $('g_outline').addEventListener('change', () => { gcfg.outline = $('g_outline').checked; rebuild(); });
+$('g_head').addEventListener('change', () => { gcfg.head = $('g_head').value; rebuild(); });
+$('g_hsize').addEventListener('input', () => { gcfg.hatScale = Number($('g_hsize').value); $('g_hsize_v').textContent = `${gcfg.hatScale}×`; later(); });
+for (const [id, i] of [['g_hx', 0], ['g_hy', 1], ['g_hz', 2]]) $(id).addEventListener('input', () => { gcfg.hatOffset[i] = Number($(id).value); later(); });
+$('g_hreset').addEventListener('click', () => { gcfg.hatScale = 1; gcfg.hatOffset = [0, 0, 0]; gcfg.head = ''; fillGlbForm(); rebuild(); });
 $('g_copy').addEventListener('click', async () => {
   const text = JSON.stringify(cfgJson(), null, 2);
   try { await navigator.clipboard.writeText(text); $('g_copied').textContent = 'Zkopírováno ✓'; } catch { $('g_cfg').select(); $('g_copied').textContent = 'Označeno – Ctrl+C'; }
@@ -380,6 +418,7 @@ $('g_copy').addEventListener('click', async () => {
 });
 $('g_remove').addEventListener('click', () => { glb = null; walkPreview = false; $('glbpanel').hidden = true; $('glbfile').value = ''; rebuild(); });
 $('glbfile').addEventListener('change', (e) => openGlb(e.target.files[0]));
+$('glbfile').accept = '.glb,.gltf,.fbx,.obj,.blend,.stl,.dae,.3ds';
 for (const el of [$('drop'), view]) {
   el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add(el === view ? 'dragover' : 'over'); });
   el.addEventListener('dragleave', () => el.classList.remove('dragover', 'over'));

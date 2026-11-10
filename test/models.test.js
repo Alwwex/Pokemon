@@ -23,6 +23,11 @@ test('nastavení vlastního modelu: jen známé klíče a rozumné hodnoty', () 
   assert.equal(cfg.evil, undefined);
   assert.equal({}.polluted, undefined);
   assert.equal(sanitizeModelConfig({ toon: 'ano' }).toon, undefined);
+  const hat = sanitizeModelConfig({ head: 'mixamorigHead', hatScale: 9, hatOffset: [0, 0.1, -7] });
+  assert.equal(hat.head, 'mixamorigHead');
+  assert.equal(hat.hatScale, 5);
+  assert.deepEqual(hat.hatOffset, [0, 0.1, -3]);
+  assert.equal(sanitizeModelConfig({ hatOffset: [0, 'x', 1] }).hatOffset, undefined);
 });
 
 test('seznam modelů: .glb podle klíče druhu, nastavení z .json vedle', () => {

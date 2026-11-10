@@ -15,6 +15,19 @@ export function toonGradient() {
   return gradientTex;
 }
 
+// Jemnější kreslené stínování pro modely s texturou (tvrdé stupně by na nich udělaly tmavé fleky).
+let softTex = null;
+export function softToonGradient() {
+  if (softTex) return softTex;
+  const data = new Uint8Array([150, 205, 238, 255]);
+  softTex = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
+  softTex.minFilter = THREE.NearestFilter;
+  softTex.magFilter = THREE.NearestFilter;
+  softTex.generateMipmaps = false;
+  softTex.needsUpdate = true;
+  return softTex;
+}
+
 const matCache = new Map();
 // Toon materiál s mezipamětí podle barvy a voleb.
 export function toon(color, o = {}) {

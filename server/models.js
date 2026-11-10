@@ -14,7 +14,11 @@ export function sanitizeModelConfig(raw) {
   set('lift', num(raw.lift, -2, 2));
   if (raw.toon === true || raw.toon === false || raw.toon === 'auto') cfg.toon = raw.toon;
   if (typeof raw.outline === 'boolean') cfg.outline = raw.outline;
-  for (const k of ['idle', 'walk', 'attack']) set(k, str(raw[k]));
+  for (const k of ['idle', 'walk', 'attack', 'head']) set(k, str(raw[k]));
+  set('hatScale', num(raw.hatScale, 0.2, 5));
+  if (Array.isArray(raw.hatOffset) && raw.hatOffset.length === 3 && raw.hatOffset.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+    cfg.hatOffset = raw.hatOffset.map((v) => Math.max(-3, Math.min(3, v)));
+  }
   if (Array.isArray(raw.hide)) {
     const hide = raw.hide.filter((x) => typeof x === 'string' && x.length > 0 && x.length <= 64).slice(0, 64);
     if (hide.length) cfg.hide = hide;

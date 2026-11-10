@@ -2,7 +2,7 @@
 //
 // Každý tvor se staví z jednoduchých tvarů (koule, válce, kužele…) s kreslenými barvami a obrysem.
 // Pokud ve složce public/models existuje soubor <druh>.glb, použije se místo procedurálního modelu.
-import { THREE, toon, GEO, addOutlines, outlineMat, glowTexture, starTexture, toonGradient } from './core.js';
+import { THREE, toon, GEO, addOutlines, outlineMat, glowTexture, starTexture, toonGradient, softToonGradient } from './core.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { setCustomSpriteProvider, invalidateSprites } from '../gfx/monart.js';
@@ -1273,8 +1273,10 @@ const ACTION_RE = {
   attack: /attack|atk|hit|strike|bite|punch|kick|slash|roar/i,
 };
 
-function pickClip(anims, name, re, fallbackFirst) {
-  if (!anims || !anims.length) return null;
+function pickClip(all, name, re, fallbackFirst) {
+  // prázdné animace (bez stop nebo s nulovou délkou) přeskočit – čas by byl NaN
+  const anims = (all || []).filter((a) => a.tracks.length && a.duration > 0);
+  if (!anims.length) return null;
   if (name) {
     const byName = anims.find((a) => a.name === name);
     if (byName) return byName;
@@ -1305,6 +1307,18 @@ function visibleBounds(root) {
   return box;
 }
 
+// Kosti a pojmenované uzly modelu (Dílna tvorů – výběr hlavy pro čepici).
+export function modelNodes(gltf) {
+  const bones = [];
+  const nodes = [];
+  (gltf.scene || gltf.scenes[0]).traverse((o) => {
+    if (!o.name) return;
+    if (o.isBone) bones.push(o.name);
+    else if (!o.isMesh) nodes.push(o.name);
+  });
+  return { bones, nodes };
+}
+
 // Seznam částí modelu (pro Dílnu tvorů): jméno sítě a jejího rodiče.
 export function modelParts(gltf) {
   const out = [];
@@ -1327,10 +1341,13 @@ export function prepareCustomModel(gltf, key, cfg = {}) {
     let out = m;
     const convert = mode === true || (mode === 'auto' && !m.isMeshBasicMaterial && !m.isMeshToonMaterial);
     if (convert) {
+      // s texturou jemné stínování (tvrdé stupně dělají na detailní textuře tmavé fleky)
       out = new THREE.MeshToonMaterial({
-        color: m.color ? m.color.clone() : new THREE.Color('#ffffff'), map: m.map || null, gradientMap: toonGradient(),
+        color: m.color ? m.color.clone() : new THREE.Color('#ffffff'), map: m.map || null, gradientMap: m.map ? softToonGradient() : toonGradient(),
         transparent: !!m.transparent, opacity: m.opacity ?? 1, alphaTest: m.alphaTest || 0, side: m.side, vertexColors: !!m.vertexColors, alphaMap: m.alphaMap || null,
+        normalMap: m.normalMap || null,
       });
+      if (m.normalMap && m.normalScale) out.normalScale.copy(m.normalScale);
       if (m.emissive) { out.emissive.copy(m.emissive); out.emissiveMap = m.emissiveMap || null; out.emissiveIntensity = m.emissiveIntensity ?? 1; }
       out.name = m.name;
     }
@@ -1340,6 +1357,8 @@ export function prepareCustomModel(gltf, key, cfg = {}) {
   const meshes = [];
   scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
   for (const o of meshes) {
+    // model bez normál (glTF je dovoluje) – dopočítat, jinak by kreslený materiál byl černý
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
     o.material = Array.isArray(o.material) ? o.material.map(toToon) : toToon(o.material);
     o.castShadow = true;
     if (o.isSkinnedMesh) o.frustumCulled = false;
@@ -1351,8 +1370,9 @@ export function prepareCustomModel(gltf, key, cfg = {}) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       if (mats.some((m) => !m || (m.transparent && (m.opacity ?? 1) < 0.99) || m.alphaTest > 0)) continue;
       let line;
+      const og = outlineGeometry(o.geometry);
       if (o.isSkinnedMesh) {
-        line = new THREE.SkinnedMesh(o.geometry, ol);
+        line = new THREE.SkinnedMesh(og, ol);
         line.bind(o.skeleton, o.bindMatrix);
         line.bindMode = o.bindMode;
         line.position.copy(o.position);
@@ -1361,7 +1381,7 @@ export function prepareCustomModel(gltf, key, cfg = {}) {
         line.frustumCulled = false;
         o.parent.add(line);
       } else {
-        line = new THREE.Mesh(o.geometry, ol);
+        line = new THREE.Mesh(og, ol);
         o.add(line);
       }
       line.userData.isOutline = true;
@@ -1383,13 +1403,158 @@ export function prepareCustomModel(gltf, key, cfg = {}) {
   const c = box.getCenter(new THREE.Vector3());
   rig.position.set(-c.x, -box.min.y + (cfg.lift || 0), -c.z);
   box = visibleBounds(rig);
-  const anims = gltf.animations || [];
+  const anims = (gltf.animations || []).filter((a) => a.tracks.length && a.duration > 0);
   return {
     key, rig, cfg, animations: anims,
     clips: { idle: pickClip(anims, cfg.idle, ACTION_RE.idle, true), walk: pickClip(anims, cfg.walk, ACTION_RE.walk, false), attack: pickClip(anims, cfg.attack, ACTION_RE.attack, false) },
     height: box.max.y, radius: Math.max(box.max.x, -box.min.x, box.max.z, -box.min.z),
-    top: new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2),
+    hat: findHatSpot(rig, box, cfg),
   };
+}
+
+// Geometrie pro obrys se sjednocenými normálami: na hranách s rozdělenými normálami by se
+// obrys „rozpadl“ a prosvítal by dovnitř modelu.
+function outlineGeometry(geo) {
+  const pos = geo.attributes.position;
+  let nrm = geo.attributes.normal;
+  if (!nrm) {
+    const tmp = geo.clone();
+    tmp.computeVertexNormals();
+    nrm = tmp.attributes.normal;
+  }
+  const n = pos.count;
+  const keys = new Array(n);
+  const acc = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+    keys[i] = k;
+    let a = acc.get(k);
+    if (!a) { a = [0, 0, 0]; acc.set(k, a); }
+    a[0] += nrm.getX(i);
+    a[1] += nrm.getY(i);
+    a[2] += nrm.getZ(i);
+  }
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = acc.get(keys[i]);
+    const l = Math.hypot(a[0], a[1], a[2]) || 1;
+    out[i * 3] = a[0] / l;
+    out[i * 3 + 1] = a[1] / l;
+    out[i * 3 + 2] = a[2] / l;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', pos);
+  g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+  for (const name of ['skinIndex', 'skinWeight']) if (geo.attributes[name]) g.setAttribute(name, geo.attributes[name]);
+  if (geo.index) g.setIndex(geo.index);
+  return g;
+}
+
+// ---------- kam patří čepice ----------
+const HEAD_BAD = /end|top|nub|tip|fore|ear|eye|jaw|tongue|hair|neck|brow|lid|mouth|teeth/i;
+
+// Uzel hlavy: ze nastavení, nebo podle jména (Head, mixamorig:Head, Bip001 Head, hlava…).
+export function findHeadNode(root, cfg = {}) {
+  if (cfg.head) {
+    const n = root.getObjectByName(cfg.head);
+    if (n) return n;
+  }
+  let exact = null;
+  let any = null;
+  root.traverse((o) => {
+    if (!o.name || HEAD_BAD.test(o.name)) return;
+    if (!exact && /(head|hlava)$/i.test(o.name)) exact = o;
+    else if (!any && /head|hlava/i.test(o.name)) any = o;
+  });
+  return exact || any;
+}
+
+const _v = new THREE.Vector3();
+
+// Body modelu (v prostoru tvora), u velkých modelů jen vzorek.
+function samplePoints(root, filter, max = 24000) {
+  const meshes = [];
+  root.traverse((o) => { if (o.isMesh && !o.userData.isOutline && !hiddenUp(o)) meshes.push(o); });
+  const total = meshes.reduce((a, m) => a + m.geometry.attributes.position.count, 0);
+  const step = Math.max(1, Math.ceil(total / max));
+  const pts = [];
+  for (const m of meshes) {
+    const cnt = m.geometry.attributes.position.count;
+    for (let i = 0; i < cnt; i += step) {
+      if (filter && !filter(m, i)) continue;
+      m.getVertexPosition(i, _v);
+      m.localToWorld(_v);
+      pts.push(_v.clone());
+    }
+  }
+  return pts;
+}
+
+// Vrchol hlavy a její šířka z bodů hlavy.
+function headFromPoints(pts) {
+  if (!pts.length) return null;
+  let top = -Infinity;
+  let low = Infinity;
+  for (const p of pts) { top = Math.max(top, p.y); low = Math.min(low, p.y); }
+  const hh = Math.max(0.01, top - low);
+  const crown = pts.filter((p) => p.y > top - hh * 0.12);
+  const cx = crown.reduce((a, p) => a + p.x, 0) / crown.length;
+  const cz = crown.reduce((a, p) => a + p.z, 0) / crown.length;
+  const band = pts.filter((p) => p.y > top - hh * 0.45);
+  const dx = band.map((p) => Math.abs(p.x - cx)).sort((a, b) => a - b);
+  const half = dx.length ? dx[Math.floor(dx.length * 0.9)] : 0.2;
+  return { pos: new THREE.Vector3(cx, top, cz), width: half * 2 };
+}
+
+// Najde místo pro čepici: kost/uzel hlavy, jinak odhad podle tvaru (vršek uprostřed vpředu –
+// ne zvednuté ruce ani ocas, který bývá vzadu).
+function findHatSpot(rig, box, cfg) {
+  rig.updateMatrixWorld(true);
+  const H = Math.max(0.1, box.max.y - box.min.y);
+  const W = Math.max(0.05, box.max.x - box.min.x);
+  const D = Math.max(0.05, box.max.z - box.min.z);
+  const head = findHeadNode(rig, cfg);
+  let res = null;
+  let source = 'odhad';
+  if (head && head.isBone) {
+    // vrcholy, které hýbe hlavně kost hlavy
+    const owners = new Map();
+    rig.traverse((o) => { if (o.isSkinnedMesh && o.skeleton) owners.set(o, o.skeleton.bones.indexOf(head)); });
+    const pts = samplePoints(rig, (m, i) => {
+      const bi = owners.get(m);
+      if (bi == null || bi < 0) return false;
+      const si = m.geometry.attributes.skinIndex;
+      const sw = m.geometry.attributes.skinWeight;
+      for (let c = 0; c < 4; c++) if (si.getComponent(i, c) === bi && sw.getComponent(i, c) >= 0.5) return true;
+      return false;
+    });
+    res = headFromPoints(pts);
+    if (res) source = 'kost';
+  } else if (head) {
+    const inside = new Set();
+    head.traverse((o) => inside.add(o));
+    res = headFromPoints(samplePoints(rig, (m) => inside.has(m)));
+    if (res) source = 'uzel';
+  }
+  if (!res) {
+    const all = samplePoints(rig);
+    const cx = (box.min.x + box.max.x) / 2;
+    const cz = (box.min.z + box.max.z) / 2;
+    let col = all.filter((p) => Math.abs(p.x - cx) < W * 0.2 && p.z > cz - D * 0.15);
+    if (col.length < 8) col = all.filter((p) => Math.abs(p.x - cx) < W * 0.3);
+    if (!col.length) col = all;
+    let top = -Infinity;
+    for (const p of col) top = Math.max(top, p.y);
+    const near = col.filter((p) => p.y > top - H * 0.04);
+    const hx = near.reduce((a, p) => a + p.x, 0) / near.length;
+    const hz = near.reduce((a, p) => a + p.z, 0) / near.length;
+    const band = all.filter((p) => p.y > top - H * 0.2 && Math.abs(p.x - hx) < W * 0.32 && Math.abs(p.z - hz) < D * 0.35);
+    const dx = band.map((p) => Math.abs(p.x - hx)).sort((a, b) => a - b);
+    const half = dx.length ? dx[Math.floor(dx.length * 0.9)] : W * 0.2;
+    res = { pos: new THREE.Vector3(hx, top, hz), width: half * 2 };
+  }
+  const width = Math.max(H * 0.12, Math.min(H * 0.7, res.width));
+  return { pos: res.pos, width, bone: head && source !== 'odhad' ? head.name : null, source };
 }
 
 function switchAction(ud, name) {
@@ -1414,18 +1579,25 @@ export function playCreatureAction(obj, name) {
   return true;
 }
 
-function addHat(holder, tpl, hat) {
-  if (!hat || !HAT_BUILDERS[hat]) return;
+function addHat(inner, obj, tpl, hat) {
+  if (!hat || !HAT_BUILDERS[hat] || !tpl.hat) return;
   const k = new Kit({ line: '#1c1424' });
   const g = new THREE.Group();
   g.name = 'customHat';
-  const pos = Array.isArray(tpl.cfg.hat) ? new THREE.Vector3(...tpl.cfg.hat) : tpl.top.clone().add(new THREE.Vector3(0, -0.04, 0));
-  g.position.copy(pos);
-  g.scale.setScalar(Math.max(0.6, Math.min(1.6, tpl.height / 0.95)));
+  const off = Array.isArray(tpl.cfg.hatOffset) ? tpl.cfg.hatOffset : [0, 0, 0];
+  const size = (tpl.hat.width / 0.5) * (tpl.cfg.hatScale || 1);
+  g.position.set(tpl.hat.pos.x + off[0], tpl.hat.pos.y - tpl.hat.width * 0.08 + off[1], tpl.hat.pos.z + off[2]);
+  g.scale.setScalar(size);
   HAT_BUILDERS[hat](k, g, new THREE.Vector3(0, 0, 0));
   while (k.root.children.length) g.add(k.root.children[0]);
   addOutlines(g, 0.018, '#1c1424');
-  holder.add(g);
+  inner.add(g);
+  // s kostí hlavy se čepice hýbe spolu s hlavou (animace)
+  const bone = tpl.hat.bone ? obj.getObjectByName(tpl.hat.bone) : null;
+  if (bone) {
+    inner.updateMatrixWorld(true);
+    bone.attach(g);
+  }
 }
 
 // Vyrobí z šablony samostatnou instanci (s vlastní kostrou a animacemi).
@@ -1436,7 +1608,7 @@ export function instantiateCustom(tpl, opts = {}) {
   holder.add(inner);
   const obj = cloneSkinned(tpl.rig);
   inner.add(obj);
-  addHat(inner, tpl, opts.hat);
+  addHat(inner, obj, tpl, opts.hat);
   holder.userData = { key: tpl.key, float: 0, height: tpl.height, radius: tpl.radius, fx: [], custom: true };
   if (tpl.animations.length) {
     const mixer = new THREE.AnimationMixer(obj);

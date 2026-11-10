@@ -216,7 +216,22 @@ Nastavení (`<klíč>.json`) může obsahovat jen tyto položky:
 
 `rotateY` je otočení ve stupních, `scale` násobek výšky tvora, `lift` posun nahoru, `toon`
 `"auto"`/`true`/`false`, `hide` jména částí ke skrytí, `idle`/`walk`/`attack` jména animací.
+Pro čepice navíc `head` (jméno kosti nebo části hlavy), `hatScale` (velikost čepice) a
+`hatOffset` (posun `[x, y, z]`). Hlavu hra najde sama – podle kosti pojmenované jako hlava
+(`Head`, `mixamorig:Head`, `Bip001 Head`, `hlava`…; pak se čepice hýbe s hlavou), jinak podle
+tvaru modelu (vršek uprostřed vpředu, ne zvednuté ruce ani ocas). Posuvníky v Dílně ji doladíš.
 Seznam nalezených modelů s nastavením vrací adresa `/api/models`.
+
+#### Jaký model se hodí nejvíc
+
+- **Formát `.glb`** (glTF 2.0 Binary) – jeden soubor i s texturami. Jiné formáty (`.fbx`,
+  `.obj`, `.blend`, `.gltf` s více soubory) převedeš v Blenderu: *File → Import* a pak
+  *File → Export → glTF 2.0*, *Format: glTF Binary (.glb)*. Na Sketchfabu stáhni variantu „GLB“.
+- **Jen tvor**, bez podstavce, pozadí, světel a kamer (jinak je odškrtni v Dílně).
+- **Stojí na zemi a kouká dopředu** (+Z, v Blenderu do kamery v pohledu zepředu), osa Y nahoru.
+- **5 000–30 000 trojúhelníků** a textury nejvýš 1024–2048 px – ve světě je tvorů hodně najednou.
+- **Kostra a animace** jsou bonus: pojmenuj je `Idle`, `Walk` a `Attack` a kost hlavy `Head`.
+  Model bez animace jen jemně dýchá; model v T-póze (rozpažený) v ní bez animace zůstane.
 
 > **Pozor na licence.** Model musíš smět použít: vlastní, nebo s licencí CC0/CC-BY (např.
 > Quaternius, Kenney, Poly Pizza; u CC-BY uveď autora). Modely Pokémonů a jiných cizích postav
